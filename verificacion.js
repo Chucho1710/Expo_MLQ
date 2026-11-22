@@ -123,20 +123,39 @@ eq(['P2', 'P10', 'P1'].sort(naturalCompare), ['P1', 'P2', 'P10'], 'Orden natural
    Segunda implementación, escrita con otra estructura (ordenamiento por
    números de secuencia en vez de listas), para comparar tick a tick.
    --------------------------------------------------------------- */
+function oracleQuotas(percent, cycle) {
+  // formulación distinta: se parte de los pisos y se entrega +1 a la cola con mayor resto pendiente
+  const q = percent.map((p) => Math.floor((p * cycle) / 100));
+  while (q[0] + q[1] + q[2] < cycle) {
+    let best = 0;
+    for (let i = 1; i < 3; i++) if (percent[i] * cycle - 100 * q[i] > percent[best] * cycle - 100 * q[best]) best = i;
+    q[best]++;
+  }
+  return q;
+}
 function oracle(input, cfg) {
   const P = input.map((p) => ({ id: p.id, a: p.arrival, b: p.burst, q: p.queue, rem: p.burst, done: false, seq: 0, fin: null }));
   let up = 0, down = 0, t = 0, cur = null, qLeft = 0, pendingExp = null;
   const timeline = [];
   const alg = (q) => cfg.queues[q].algorithm;
   const idc = (x, y) => naturalCompare(x.id, y.id);
+  const pct = cfg.policy === 'percent';
+  const alloc = pct ? oracleQuotas(cfg.percent, cfg.cycle) : null;
+  let quota = [0, 0, 0];
   const pickMin = (arr, keyFn) => arr.slice().sort((x, y) => { const kx = keyFn(x), ky = keyFn(y); for (let i = 0; i < kx.length; i++) if (kx[i] !== ky[i]) return kx[i] - ky[i]; return idc(x, y); })[0];
   while (P.some((p) => !p.done)) {
     P.filter((p) => p.a === t).sort(idc).forEach((p) => { p.seq = ++up; });
     if (pendingExp) { pendingExp.seq = ++up; pendingExp = null; }
+    if (pct && t % cfg.cycle === 0) quota = alloc.slice();
     const waiting = P.filter((p) => p.a <= t && !p.done && p !== cur);
     const pool = waiting.concat(cur ? [cur] : []);
     if (!pool.length) { timeline.push(null); t++; continue; }
-    const topQ = Math.min(...pool.map((p) => p.q));
+    let topQ = Math.min(...pool.map((p) => p.q));
+    if (pct) {
+      const queuesWithWork = [0, 1, 2].filter((q) => pool.some((p) => p.q === q));
+      const withQuota = queuesWithWork.filter((q) => quota[q] > 0);
+      topQ = withQuota.length ? withQuota[0] : queuesWithWork[0];
+    }
     const wTop = waiting.filter((p) => p.q === topQ);
     let chosen;
     if (cur && cur.q === topQ) {
@@ -152,6 +171,7 @@ function oracle(input, cfg) {
     }
     if (cur && chosen !== cur && alg(cur.q) === 'RR') cur.seq = --down; // interrumpido: al frente
     if (chosen !== cur && alg(topQ) === 'RR') qLeft = cfg.queues[topQ].quantum;
+    if (pct && quota[chosen.q] > 0) quota[chosen.q]--;
     chosen.rem--; timeline.push(chosen.id);
     if (alg(chosen.q) === 'RR') qLeft--;
     if (chosen.rem === 0) { chosen.done = true; chosen.fin = t + 1; cur = null; }
@@ -166,6 +186,9 @@ function oracle(input, cfg) {
    D. INVARIANTES MATEMÁTICOS
    --------------------------------------------------------------- */
 function invariants(input, cfg, res, label) {
+  const pct = cfg.policy === 'percent';
+  const quotaNow = [0, 0, 0];
+  const alloc = pct ? oracleQuotas(cfg.percent, cfg.cycle) : null;
   const alg = (q) => cfg.queues[q].algorithm;
   const quantum = (q) => cfg.queues[q].quantum;
   const P = Object.fromEntries(input.map((p) => [p.id, p]));
@@ -183,14 +206,23 @@ function invariants(input, cfg, res, label) {
   const firstRun = {}, lastRun = {};
   T.forEach((tk, i) => {
     ok(tk.t === i, `${label}: ticks consecutivos`);
+    if (pct && tk.t % cfg.cycle === 0) { quotaNow[0] = alloc[0]; quotaNow[1] = alloc[1]; quotaNow[2] = alloc[2]; }
     const eligible = input.filter((p) => p.arrival <= tk.t && remaining[p.id] > 0);
     if (tk.pid === null) { ok(eligible.length === 0, `${label}: CPU ociosa en t=${tk.t} habiendo procesos elegibles (no conserva trabajo)`); return; }
     const run = P[tk.pid];
     ok(run.arrival <= tk.t, `${label}: ${tk.pid} corre en t=${tk.t} antes de llegar`);
     ok(remaining[tk.pid] > 0, `${label}: ${tk.pid} corre sin tiempo restante`);
     eq(tk.queue, run.queue, `${label}: ${tk.pid} conserva su cola`);
-    // 3. Prioridad fija: no hay elegibles en una cola de mayor prioridad
-    ok(eligible.every((p) => p.queue >= run.queue), `${label}: violación de prioridad en t=${tk.t}`);
+    if (!pct) {
+      // 3. Prioridad fija: no hay elegibles en una cola de mayor prioridad
+      ok(eligible.every((p) => p.queue >= run.queue), `${label}: violación de prioridad en t=${tk.t}`);
+    } else {
+      // 3b. Porcentajes: se atiende a la cola de mayor prioridad con procesos Y cuota; si ninguna tiene cuota, a la de mayor prioridad con procesos
+      const withWork = [0, 1, 2].filter((q) => eligible.some((p) => p.queue === q));
+      const withQuota = withWork.filter((q) => quotaNow[q] > 0);
+      eq(run.queue, withQuota.length ? withQuota[0] : withWork[0], `${label}: cola elegida por cuotas en t=${tk.t}`);
+      if (quotaNow[run.queue] > 0) quotaNow[run.queue]--;
+    }
     // 4. SRTF: el que corre tiene el menor restante de su cola
     const sameQ = eligible.filter((p) => p.queue === run.queue);
     if (alg(run.queue) === 'SRTF') ok(sameQ.every((p) => remaining[p.id] >= remaining[tk.pid]), `${label}: SRTF no ejecuta el menor restante en t=${tk.t}`);
@@ -222,7 +254,7 @@ function invariants(input, cfg, res, label) {
       const ended = rem2[tk.pid] === 0 || !nxt || nxt.pid !== tk.pid || nxt.dispatch;
       if (ended && rem2[tk.pid] > 0) {
         const quantumDone = a === 'RR' && slice.len === quantum(run.queue);
-        const higher = nxt && nxt.pid !== null && P[nxt.pid].queue < run.queue;
+        const higher = nxt && nxt.pid !== null && (pct ? P[nxt.pid].queue !== run.queue : P[nxt.pid].queue < run.queue);
         const srtf = a === 'SRTF' && nxt && nxt.pid !== tk.pid;
         ok(quantumDone || higher || srtf, `${label}: la rodaja de ${tk.pid} termina sin motivo válido en t=${tk.t + 1} (a=${a})`);
       }
@@ -271,7 +303,8 @@ function invariants(input, cfg, res, label) {
       ok(['ready', 'interrupted'].includes(s.procs.find((p) => p.id === id).state), `${label}: ${id} en cola con estado válido (t=${i})`);
     }));
     // preferencia: la cola con prioridad más alta que tenga procesos
-    if (i < T.length) { const pref = Math.min(...input.filter((p) => p.arrival <= i && s.procs.find((x) => x.id === p.id).state !== 'done').map((p) => p.queue), 99); eq(s.preferredQueue, pref === 99 ? null : pref, `${label}: cola con preferencia en t=${i}`); }
+    if (pct && i < T.length && T[i].pid !== null) eq(s.preferredQueue, T[i].queue, `${label}: cola atendida en t=${i}`);
+    if (!pct && i < T.length) { const pref = Math.min(...input.filter((p) => p.arrival <= i && s.procs.find((x) => x.id === p.id).state !== 'done').map((p) => p.queue), 99); eq(s.preferredQueue, pref === 99 ? null : pref, `${label}: cola con preferencia en t=${i}`); }
   });
   const fin = res.events.filter((e) => e.type === 'finish'), arr = res.events.filter((e) => e.type === 'arrival');
   eq(fin.length, n, `${label}: un evento de finalización por proceso`);
@@ -334,6 +367,98 @@ throws(() => simulate([{ id: 'P1', arrival: 0, burst: 0, queue: 0 }], DEFAULT_CO
 throws(() => simulate([{ id: 'P1', arrival: -1, burst: 2, queue: 0 }], DEFAULT_CONFIG()), 'Llegada negativa');
 throws(() => simulate([{ id: 'P1', arrival: 0, burst: 2, queue: 0 }, { id: 'P1', arrival: 0, burst: 2, queue: 1 }], DEFAULT_CONFIG()), 'Id repetido');
 throws(() => simulate([{ id: 'P1', arrival: 0, burst: 2, queue: 0 }], { queues: [{ algorithm: 'RR', quantum: 0 }, { algorithm: 'FCFS' }, { algorithm: 'FCFS' }] }), 'Quantum 0');
+
+/* ---------------------------------------------------------------
+   E. POLÍTICA POR PORCENTAJES DE CPU
+   --------------------------------------------------------------- */
+{
+  const pcfg = (percent, cycle, algs) => ({ policy: 'percent', percent, cycle, queues: (algs || ['FCFS', 'FCFS', 'FCFS']).map((a) => ({ algorithm: a, quantum: 2 })) });
+  // E1. Reparto de cuotas: suma = ciclo y cada cuota difiere menos de 1 del valor exacto (todas las combinaciones)
+  let allocChecks = 0;
+  for (let a = 1; a <= 98; a++) for (let b = 1; a + b <= 99; b++) {
+    const c = 100 - a - b;
+    for (const cyc of [3, 7, 10, 12, 25, 100]) {
+      const q = MLQ.allocateQuotas([a, b, c], cyc);
+      eq(q.reduce((x, y) => x + y, 0), cyc, `Cuotas [${a},${b},${c}] ciclo ${cyc}: suma`);
+      [a, b, c].forEach((p, i) => ok(Math.abs(q[i] - (p * cyc) / 100) < 1, `Cuotas [${a},${b},${c}] ciclo ${cyc}: cola ${i} lejos de su valor exacto`));
+      eq(q, oracleQuotas([a, b, c], cyc), `Cuotas [${a},${b},${c}] ciclo ${cyc}: motor = oráculo`);
+      allocChecks++;
+    }
+  }
+  // E2. Caso calculado a mano (50/30/20, ciclo 10)
+  const hand = simulate([{ id: 'A', arrival: 0, burst: 6, queue: 0 }, { id: 'B', arrival: 0, burst: 4, queue: 1 }, { id: 'C', arrival: 0, burst: 4, queue: 2 }], pcfg([50, 30, 20], 10));
+  eq(blocks(hand), [['A', 0, 5], ['B', 5, 8], ['C', 8, 10], ['A', 10, 11], ['B', 11, 12], ['C', 12, 14]], 'Porcentajes (a mano): Gantt');
+  const hm = Object.fromEntries(hand.metrics.perProcess.map((m) => [m.id, [m.finish, m.turnaround, m.waiting]]));
+  eq(hm, { A: [11, 11, 5], B: [12, 12, 8], C: [14, 14, 10] }, 'Porcentajes (a mano): fin / retorno / espera');
+  near(hand.metrics.avgWaiting, 23 / 3, 'Porcentajes (a mano): espera promedio');
+  eq([hand.metrics.preemptions, hand.metrics.contextSwitches], [3, 5], 'Porcentajes (a mano): interrupciones y cambios de contexto');
+  eq(hand.metrics.perQueue.map((q) => q.cpuTime), [6, 4, 4], 'Porcentajes (a mano): CPU usada por cola');
+  // E3. Conservación del trabajo: una cola sola aprovecha todo el tiempo (sin interrupciones ni ocio)
+  const alone = simulate([{ id: 'X', arrival: 0, burst: 15, queue: 2 }], pcfg([60, 30, 10], 10));
+  eq(blocks(alone), [['X', 0, 15]], 'Porcentajes: una cola sola usa el 100 % de la CPU');
+  eq(alone.metrics.preemptions, 0, 'Porcentajes: una cola sola no es interrumpida');
+  // E4. Reparto exacto con las tres colas saturadas: en cada ciclo cada cola recibe EXACTAMENTE su cuota
+  [[50, 30, 20, 10], [60, 30, 10, 10], [34, 33, 33, 10], [70, 20, 10, 20], [25, 25, 50, 8]].forEach(([a, b, c, cyc]) => {
+    const procs = [{ id: 'S', arrival: 0, burst: 900, queue: 0 }, { id: 'I', arrival: 0, burst: 900, queue: 1 }, { id: 'B', arrival: 0, burst: 900, queue: 2 }];
+    const r = simulate(procs, pcfg([a, b, c], cyc));
+    const quota = MLQ.allocateQuotas([a, b, c], cyc);
+    for (let w = 0; w < 60; w++) {
+      const cnt = [0, 0, 0];
+      for (let i = w * cyc; i < (w + 1) * cyc; i++) cnt[r.ticks[i].queue]++;
+      eq(cnt, quota, `Saturado [${a},${b},${c}] ciclo ${cyc}, ventana ${w}: cuota exacta por cola`);
+    }
+    const first = 60 * cyc;
+    const total = [0, 0, 0]; for (let i = 0; i < first; i++) total[r.ticks[i].queue]++;
+    quota.forEach((qv, i) => eq(total[i] / first, qv / cyc, `Saturado [${a},${b},${c}]: fracción de CPU de la cola ${i}`));
+    invariants(procs, pcfg([a, b, c], cyc), r, `Saturado [${a},${b},${c}]/${cyc}`);
+  });
+  // E5. Las 64 combinaciones de algoritmos × varias configuraciones de porcentaje × ambos escenarios + oráculo
+  let pcombos = 0;
+  [SCENARIOS.base.processes, SCENARIOS.interrupciones.processes].forEach((procs, si) => {
+    for (const a0 of ALGS) for (const a1 of ALGS) for (const a2 of ALGS) {
+      [[50, 30, 20, 10], [60, 30, 10, 10], [20, 30, 50, 5], [34, 33, 33, 6]].forEach(([a, b, c, cyc], k) => {
+        const cfg = { policy: 'percent', percent: [a, b, c], cycle: cyc, queues: [{ algorithm: a0, quantum: 1 + (k % 3) }, { algorithm: a1, quantum: 2 }, { algorithm: a2, quantum: 3 }] };
+        const label = `Esc${si} %${a}/${b}/${c} c${cyc} ${a0}/${a1}/${a2}`;
+        const res = simulate(procs, cfg);
+        invariants(procs, cfg, res, label);
+        const o = oracle(procs, cfg);
+        eq(res.ticks.map((t) => t.pid), o.timeline, `${label}: Gantt motor = oráculo`);
+        pcombos++;
+      });
+    }
+  });
+  // E6. Aleatorios
+  const PR = 5000;
+  for (let k = 0; k < PR; k++) {
+    const n = ri(1, 9), maxA = ri(0, 12);
+    const procs = Array.from({ length: n }, (_, i) => ({ id: `P${i + 1}`, arrival: ri(0, maxA), burst: ri(1, 9), queue: ri(0, 2) }));
+    const a = ri(5, 60), b = ri(5, 90 - a), c = 100 - a - b;
+    const cyc = ri(5, 20);
+    const cfg = { policy: 'percent', percent: [a, b, c], cycle: cyc, queues: [0, 1, 2].map(() => ({ algorithm: ALGS[ri(0, 3)], quantum: ri(1, 5) })) };
+    if (MLQ.validateConfig(cfg).length) continue;
+    const label = `Aleatorio%#${k}`;
+    const res = simulate(procs, cfg);
+    invariants(procs, cfg, res, label);
+    const o = oracle(procs, cfg);
+    eq(res.ticks.map((t) => t.pid), o.timeline, `${label}: Gantt motor = oráculo\n     procesos: ${JSON.stringify(procs)}\n     config: ${JSON.stringify(cfg)}`);
+    if (failures.length > 25) break;
+  }
+  // E7. Validación de la política
+  const q3 = [0, 1, 2].map(() => ({ algorithm: 'FCFS', quantum: 2 }));
+  eq(MLQ.validateConfig({ policy: 'percent', percent: [50, 30, 20], cycle: 10, queues: q3 }), [], 'Validación: configuración correcta');
+  ok(MLQ.validateConfig({ policy: 'percent', percent: [50, 30, 30], cycle: 10, queues: q3 }).length > 0, 'Validación: la suma debe ser 100');
+  ok(MLQ.validateConfig({ policy: 'percent', percent: [0, 50, 50], cycle: 10, queues: q3 }).length > 0, 'Validación: 0 % no es válido');
+  ok(MLQ.validateConfig({ policy: 'percent', percent: [98, 1, 1], cycle: 10, queues: q3 }).length > 0, 'Validación: una cola con cuota 0 se rechaza');
+  ok(MLQ.validateConfig({ policy: 'percent', percent: [50, 30, 20], cycle: 2, queues: q3 }).length > 0, 'Validación: ciclo mínimo');
+  ok(MLQ.validateConfig({ policy: 'priority', percent: [1, 1, 1], cycle: 0, queues: q3 }).length === 0, 'Validación: en prioridad fija los porcentajes se ignoran');
+  // E8. Regresión: con prioridad fija, el resultado NO depende de los campos de porcentaje
+  const baseA = simulate(SCENARIOS.base.processes, DEFAULT_CONFIG());
+  const baseB = simulate(SCENARIOS.base.processes, Object.assign(DEFAULT_CONFIG(), { percent: [10, 10, 80], cycle: 4 }));
+  eq(baseA.ticks, baseB.ticks, 'Regresión: prioridad fija ignora los porcentajes');
+  console.log(` Pruebas del reparto de cuotas (mayor resto)        : ${allocChecks} combinaciones`);
+  console.log(` Porcentajes: combinaciones de algoritmos × configs : ${pcombos}`);
+  console.log(` Porcentajes: escenarios aleatorios                 : ${PR}`);
+}
 
 /* --- Reporte --- */
 console.log('='.repeat(64));

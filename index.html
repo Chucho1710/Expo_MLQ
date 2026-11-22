@@ -140,7 +140,23 @@
         <h3>1 · Configuración de las colas</h3>
         <button class="btn btn-small btn-outline" id="btn-config-reset" type="button">Restaurar configuración</button>
       </div>
-      <p class="hint">La prioridad entre colas es fija: <strong>Sistema &gt; Interactiva &gt; Batch</strong>. Lo que sí puedes elegir es el algoritmo que cada cola usa internamente.</p>
+      <p class="hint">Elige cómo se reparte la CPU <strong>entre</strong> las tres colas y, para cada cola, qué algoritmo usa <strong>por dentro</strong>. El orden de prioridad es siempre <strong>Sistema &gt; Interactiva &gt; Batch</strong> y no se puede cambiar.</p>
+      <div class="policy" id="policy">
+        <div class="policy-opts" role="radiogroup" aria-label="Política de planificación entre colas">
+          <label class="policy-opt"><input type="radio" name="policy" value="priority" checked>
+            <span><b>Prioridad fija</b><small>La CPU es siempre de la cola de mayor prioridad con procesos listos. Es apropiativa: si llega un proceso a una cola superior, interrumpe al actual.</small></span></label>
+          <label class="policy-opt"><input type="radio" name="policy" value="percent">
+            <span><b>Porcentajes de CPU</b><small>El tiempo se divide en ciclos y cada cola recibe un porcentaje. Ninguna cola se queda sin CPU, pero las de menor prioridad ya no esperan indefinidamente.</small></span></label>
+        </div>
+        <div class="policy-extra" id="policy-extra" hidden>
+          <label class="cycle-field">Duración del ciclo (unidades)
+            <input id="cycle" type="number" min="3" max="100" step="1" value="10">
+          </label>
+          <div class="pct-sum" id="pct-sum" aria-live="polite"></div>
+          <p class="hint small" style="margin:0;flex:1 1 280px">En cada ciclo, cada cola usa su cuota por orden de prioridad (Sistema, luego Interactiva, luego Batch). Si una cola está vacía, su tiempo lo aprovechan las demás: la CPU no se desperdicia.</p>
+        </div>
+        <p class="form-msg" id="policy-msg" role="alert" aria-live="polite"></p>
+      </div>
       <div class="queue-config" id="queue-config"></div>
     </div>
 
