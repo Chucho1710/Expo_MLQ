@@ -60,7 +60,7 @@ kbd { font-family: var(--mono); font-size: .8em; background: var(--slate-100); b
 
 /* ---------- hero ---------- */
 .hero { background: radial-gradient(900px 360px at 90% -20%, rgba(255,255,255,.14), transparent 60%), linear-gradient(135deg, var(--red-800), var(--red-700) 70%, var(--red-600)); color: var(--white); padding: clamp(2.5rem, 7vw, 4.8rem) 0 clamp(2.5rem, 6vw, 3.8rem); }
-.hero-inner { max-width: 880px; margin-inline: 0; padding-inline: 20px;}
+.hero-inner { max-width: 880px; margin-inline: 0; padding-inline: clamp(1.5rem, 6vw, 5rem);}
 .tag { display: inline-flex; align-items: center; gap: .5rem; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.5); color: var(--white); padding: .3rem .85rem; border-radius: 999px; font-weight: 600; font-size: .82rem; letter-spacing: .05em; text-transform: uppercase; }
 .tag .dot { width: .55rem; height: .55rem; border-radius: 50%; background: var(--white); animation: pulse 1.8s infinite; }
 @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(255,255,255,.6);} 50% { box-shadow: 0 0 0 7px rgba(255,255,255,0);} }
