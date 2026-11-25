@@ -1,6 +1,5 @@
 import React from 'react';
-import QueueConfigPanel from './config/QueueConfigPanel.jsx';
-import ProcessPanel from './processes/ProcessPanel.jsx';
+import QueuesAndProcessesSection from './queuesAndProcesses/QueuesAndProcessesSection.jsx';
 import Controls from './controls/Controls.jsx';
 import Board from './board/Board.jsx';
 import GanttChart from './gantt/GanttChart.jsx';
@@ -40,25 +39,17 @@ export default function SimulatorSection({
           <span className="eyebrow">Laboratorio</span>
           <h2>Simulador interactivo de MLQ</h2>
           <p>
-            Configura las colas, agrega procesos y observa cada decisión del planificador.
+            Configura las colas con sus procesos y observa cada decisión del planificador.
             Atajos: <kbd>Espacio</kbd> pausar/continuar · <kbd>→</kbd> siguiente paso · <kbd>←</kbd> paso anterior.
           </p>
         </div>
 
-        {/* 1 · Configuración de las colas */}
-        <QueueConfigPanel
+        {/* 1 · Sección Unificada de Colas y Procesos */}
+        <QueuesAndProcessesSection
           config={config}
           processes={processes}
-          currentSnapshot={currentSnapshot}
           onChangeConfig={onChangeConfig}
           onResetConfig={onResetConfig}
-          toast={toast}
-        />
-
-        {/* 2 · Procesos */}
-        <ProcessPanel
-          processes={processes}
-          config={config}
           onProcessesChange={onProcessesChange}
           onLoadScenario={onLoadScenario}
           onClearProcesses={onClearProcesses}
@@ -88,6 +79,7 @@ export default function SimulatorSection({
           currentSnapshot={currentSnapshot}
           isFinished={isFinished}
           simResult={simResult}
+          ganttMs={ganttMs}
         />
 
         {/* 4 · Diagrama de Gantt */}

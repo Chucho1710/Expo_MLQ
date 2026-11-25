@@ -12,7 +12,8 @@ export default function Board({
   config,
   currentSnapshot,
   isFinished,
-  simResult
+  simResult,
+  ganttMs
 }) {
   const total = config.queues.length;
   const isPercent = config.policy === 'percent';
@@ -131,6 +132,7 @@ export default function Board({
           procsInfo={procsInfo}
           processColors={processColors}
           simResult={simResult}
+          ganttMs={ganttMs}
         />
 
         {/* Pool Finalizado */}

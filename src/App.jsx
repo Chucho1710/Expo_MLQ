@@ -113,7 +113,13 @@ export default function App() {
   // Ejecución automática paso a paso cuando status === 'running'
   useEffect(() => {
     if (status !== 'running') return;
-    const delayMs = Math.round(1700 - speed * 150);
+    const baseDelayMs = Math.round(1700 - speed * 150);
+
+    // Si el proceso en CPU está completando su última unidad de ráfaga (remaining === 1),
+    // damos un tiempo extra para que el usuario aprecie la barra de progreso al 100%
+    const currentSnap = simResult && cursor >= 0 ? simResult.snapshots[cursor] : null;
+    const isFinishingBurst = currentSnap?.cpu?.remaining === 1;
+    const delayMs = isFinishingBurst ? baseDelayMs + 650 : baseDelayMs;
 
     const timer = setTimeout(() => {
       if (!simResult) return;

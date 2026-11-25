@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ALGORITHMS, queueName } from '../../../engine/mlqEngine.js';
 import ProcessChip from './ProcessChip.jsx';
 
@@ -12,8 +12,33 @@ export default function CpuSlot({
   targetCpu,
   procsInfo,
   processColors,
-  simResult
+  simResult,
+  ganttMs
 }) {
+  const burst = cpu ? cpu.burst : 1;
+  const executedBefore = cpu ? cpu.executed : 0;
+  const remaining = cpu ? cpu.remaining : 0;
+
+  // Al finalizar este tick se habrá ejecutado una unidad adicional
+  const targetUnits = cpu ? Math.min(burst, executedBefore + 1) : 0;
+  const progressPct = cpu ? Math.round((targetUnits / burst) * 100) : 0;
+  const isCompleting = cpu && remaining === 1;
+
+  const [barWidth, setBarWidth] = useState(0);
+
+  useEffect(() => {
+    if (!cpu) {
+      setBarWidth(0);
+      return;
+    }
+    const t = setTimeout(() => {
+      setBarWidth(progressPct);
+    }, 20);
+    return () => clearTimeout(t);
+  }, [cpu?.pid, cpu?.executed, progressPct, cpu]);
+
+  const finishEvents = snap ? snap.events.filter((e) => e.type === 'finish') : [];
+
   return (
     <div className={`cpu ${!cpu ? 'idle' : ''}`} aria-live="polite">
       <div className="cpu-title">
@@ -33,12 +58,36 @@ export default function CpuSlot({
         })}
       </div>
 
-      <div className="cpu-bar" title="Progreso de la ráfaga">
-        <i
-          style={{
-            width: cpu ? `${(cpu.executed / cpu.burst) * 100}%` : '0%'
-          }}
-        />
+      {/* Alerta de finalización al 100% */}
+      {finishEvents.length > 0 && (
+        <div className="cpu-finish-alert">
+          {finishEvents.map((f, i) => (
+            <div key={i}>✔ {f.pid} completó el 100% de CPU</div>
+          ))}
+        </div>
+      )}
+
+      {/* Barra de progreso de la CPU con porcentaje explícito */}
+      <div className="cpu-bar-wrap">
+        <div className={`cpu-bar-label ${isCompleting ? 'is-done' : ''}`}>
+          <span>Progreso:</span>
+          <b>
+            {cpu
+              ? isCompleting
+                ? '100% (¡Ráfaga completada!)'
+                : `${progressPct}% (${targetUnits}/${burst})`
+              : '0%'}
+          </b>
+        </div>
+        <div className="cpu-bar" title="Progreso de la ráfaga">
+          <i
+            className={isCompleting ? 'completed' : ''}
+            style={{
+              width: `${cpu ? barWidth : 0}%`,
+              '--cpu-dur': `${ganttMs || 400}ms`
+            }}
+          />
+        </div>
       </div>
 
       <dl className="cpu-info">
@@ -47,15 +96,15 @@ export default function CpuSlot({
         <dt>Algoritmo</dt>
         <dd>{cpu ? ALGORITHMS[cpu.algorithm]?.short : '—'}</dd>
         <dt>Ejecutado</dt>
-        <dd>{cpu ? `${cpu.executed} / ${cpu.burst}` : '—'}</dd>
+        <dd>{cpu ? `${targetUnits} / ${cpu.burst}` : '—'}</dd>
         <dt>Restante</dt>
-        <dd>{cpu ? String(cpu.remaining) : '—'}</dd>
+        <dd>{cpu ? String(Math.max(0, cpu.remaining - 1)) : '—'}</dd>
         <dt>Quantum restante</dt>
         <dd>
           {cpu
             ? cpu.quantum === null
               ? 'n/a'
-              : `${cpu.qLeft} / ${cpu.quantum}`
+              : `${Math.max(0, cpu.qLeft - 1)} / ${cpu.quantum}`
             : '—'}
         </dd>
         {isPercent && (
