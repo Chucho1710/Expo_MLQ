@@ -5,7 +5,21 @@ function computeSegs(ticks) {
   const segs = [];
   ticks.forEach((tk) => {
     const last = segs[segs.length - 1];
-    if (last && last.pid === tk.pid && !tk.dispatch && last.end === tk.t) {
+    if (tk.interrupt) {
+      if (last && last.isInterrupt && last.interrupt === tk.interrupt && last.end === tk.t) {
+        last.end = tk.t + 1;
+      } else {
+        segs.push({
+          isInterrupt: true,
+          interrupt: tk.interrupt,
+          interruptLabel: tk.interruptLabel,
+          pid: null,
+          queue: null,
+          start: tk.t,
+          end: tk.t + 1
+        });
+      }
+    } else if (last && !last.isInterrupt && last.pid === tk.pid && !tk.dispatch && last.end === tk.t) {
       last.end = tk.t + 1;
     } else {
       segs.push({ pid: tk.pid, queue: tk.queue, start: tk.t, end: tk.t + 1 });
@@ -23,7 +37,8 @@ function computeSegs(ticks) {
 function LiveBlock({ seg, widthPct, leftPct, col, isIdle, config, ganttMs }) {
   const [w, setW] = useState(0);
   const keyRef = useRef(null);
-  const segKey = `${seg.start}-${seg.pid || 'idle'}`;
+  const isIrq = Boolean(seg.isInterrupt);
+  const segKey = `${seg.start}-${isIrq ? seg.interrupt : (seg.pid || 'idle')}`;
 
   useEffect(() => {
     // Si el segmento cambió (nuevo proceso / nuevo idle), resetear a 0 primero
@@ -48,7 +63,7 @@ function LiveBlock({ seg, widthPct, leftPct, col, isIdle, config, ganttMs }) {
   return (
     <div
       key={segKey}
-      className={`g-block live ${isIdle ? 'idle' : ''}`}
+      className={`g-block live ${isIrq ? 'interrupt' : isIdle ? 'idle' : ''}`}
       style={{
         left: `${leftPct}%`,
         width: `${w}%`,
@@ -57,12 +72,14 @@ function LiveBlock({ seg, widthPct, leftPct, col, isIdle, config, ganttMs }) {
         color: col ? col.fg : ''
       }}
       title={
-        isIdle
-          ? `CPU ociosa · t=${seg.start}→${seg.end}`
-          : `${seg.pid} · cola ${queueName(config, seg.queue)} · t=${seg.start}→${seg.end}`
+        isIrq
+          ? `Interrupción externa ${seg.interruptLabel} · t=${seg.start}→${seg.end}`
+          : isIdle
+            ? `CPU ociosa · t=${seg.start}→${seg.end}`
+            : `${seg.pid} · cola ${queueName(config, seg.queue)} · t=${seg.start}→${seg.end}`
       }
     >
-      {isIdle ? 'ocio' : seg.pid}
+      {isIrq ? `⚡ ${seg.interruptLabel}` : isIdle ? 'ocio' : seg.pid}
     </div>
   );
 }
@@ -112,6 +129,7 @@ export default function GanttChart({
             ))}
             <span><b className="mk mk-ctx">⇄</b> cambio de contexto</span>
             <span><b className="mk mk-pre">▼</b> interrupción</span>
+            <span><i className="lg lg-int" /> interrupción externa</span>
             <span><b className="mk mk-fin">✔</b> finalización</span>
           </div>
         </div>
@@ -180,6 +198,7 @@ export default function GanttChart({
           ))}
           <span><b className="mk mk-ctx">⇄</b> cambio de contexto</span>
           <span><b className="mk mk-pre">▼</b> interrupción</span>
+          <span><i className="lg lg-int" /> interrupción externa</span>
           <span><b className="mk mk-fin">✔</b> finalización</span>
         </div>
       </div>
@@ -224,8 +243,9 @@ export default function GanttChart({
               ))}
 
               {segs.map((s, i) => {
-                const isIdle = s.pid === null;
-                const col = isIdle ? null : (processColors.get(s.pid) || { bg: '#6b7280', fg: '#fff' });
+                const isIrq = Boolean(s.isInterrupt);
+                const isIdle = !isIrq && s.pid === null;
+                const col = (isIrq || isIdle) ? null : (processColors.get(s.pid) || { bg: '#6b7280', fg: '#fff' });
                 const isLive = i === segs.length - 1 && cursor < simResult.ticks.length;
                 const leftPct = (s.start / M) * 100;
                 const widthPct = ((s.end - s.start) / M) * 100;
@@ -233,7 +253,7 @@ export default function GanttChart({
                 if (isLive) {
                   return (
                     <LiveBlock
-                      key={`${s.start}-${s.pid || 'idle'}-live`}
+                      key={`${s.start}-${isIrq ? s.interrupt : (s.pid || 'idle')}-live`}
                       seg={s}
                       widthPct={widthPct}
                       leftPct={leftPct}
@@ -247,8 +267,8 @@ export default function GanttChart({
 
                 return (
                   <div
-                    key={`${s.start}-${s.pid || 'idle'}-${i}`}
-                    className={`g-block ${isIdle ? 'idle' : ''}`}
+                    key={`${s.start}-${isIrq ? s.interrupt : (s.pid || 'idle')}-${i}`}
+                    className={`g-block ${isIrq ? 'interrupt' : isIdle ? 'idle' : ''}`}
                     style={{
                       left: `${leftPct}%`,
                       width: `${widthPct}%`,
@@ -256,12 +276,14 @@ export default function GanttChart({
                       color: col ? col.fg : ''
                     }}
                     title={
-                      isIdle
-                        ? `CPU ociosa · t=${s.start}→${s.end}`
-                        : `${s.pid} · cola ${queueName(config, s.queue)} · t=${s.start}→${s.end}`
+                      isIrq
+                        ? `Interrupción externa ${s.interruptLabel} · t=${s.start}→${s.end}`
+                        : isIdle
+                          ? `CPU ociosa · t=${s.start}→${s.end}`
+                          : `${s.pid} · cola ${queueName(config, s.queue)} · t=${s.start}→${s.end}`
                     }
                   >
-                    {isIdle ? 'ocio' : s.pid}
+                    {isIrq ? `⚡ ${s.interruptLabel}` : isIdle ? 'ocio' : s.pid}
                   </div>
                 );
               })}

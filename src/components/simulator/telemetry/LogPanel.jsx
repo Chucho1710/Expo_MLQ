@@ -8,6 +8,8 @@ const ICONS = {
   dispatch: '▶',
   quantum: '⏱',
   preempt: '⚡',
+  interrupt: '⚡',
+  interrupt_end: '✓',
   context: '⇄',
   idle: '…',
   info: 'ℹ',

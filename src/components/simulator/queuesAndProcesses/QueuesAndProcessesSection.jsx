@@ -45,9 +45,11 @@ function rebalancePercentRemove(pctArr, idx) {
 export default function QueuesAndProcessesSection({
   config,
   processes,
+  interruptions,
   onChangeConfig,
   onResetConfig,
   onProcessesChange,
+  onInterruptionsChange,
   onImport,
   onClearProcesses,
   toast
@@ -206,7 +208,7 @@ export default function QueuesAndProcessesSection({
       <div className="panel-head">
         <div>
           <h3>1 · Configuración de Colas y Procesos</h3>
-          <p className="hint" style={{ margin: '.2rem 0 0' }}>
+          <p className="hint" style={{ margin: '4px 0 0' }}>
             Cada cola gestiona su propia prioridad y sus procesos asignados. Añade procesos directamente en su respectiva cola.
           </p>
         </div>
@@ -216,6 +218,7 @@ export default function QueuesAndProcessesSection({
       <GlobalActionsBar
         config={config}
         processes={processes}
+        interruptions={interruptions}
         nextPlaceholderId={nextPlaceholderId()}
         isPercent={isPercent}
         sumPct={sumPct}
@@ -229,6 +232,7 @@ export default function QueuesAndProcessesSection({
         onResetConfig={onResetConfig}
         onAddProcess={handleAddProcess}
         onAddQueue={handleAddQueue}
+        onInterruptionsChange={onInterruptionsChange}
         toast={toast}
       />
 

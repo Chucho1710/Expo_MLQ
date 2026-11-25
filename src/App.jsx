@@ -23,10 +23,11 @@ function downloadText(content, filename, mime) {
   setTimeout(() => URL.revokeObjectURL(a.href), 10000);
 }
 
-function exportJSON(processes, config, simResult) {
+function exportJSON(processes, config, simResult, interruptions = []) {
   const payload = {
     processes,
     config,
+    ...(interruptions.length ? { interruptions } : {}),
     ...(simResult ? { results: simResult.metrics } : {})
   };
   downloadText(JSON.stringify(payload, null, 2), 'mlq-simulacion.json', 'application/json');
@@ -69,7 +70,13 @@ function exportGanttSVG(simResult, processes, config) {
   const segs = [];
   ticks.forEach((tk) => {
     const last = segs[segs.length - 1];
-    if (last && last.pid === tk.pid && !tk.dispatch && last.end === tk.t) {
+    if (tk.interrupt) {
+      if (last && last.isInterrupt && last.interrupt === tk.interrupt && last.end === tk.t) {
+        last.end = tk.t + 1;
+      } else {
+        segs.push({ isInterrupt: true, interrupt: tk.interrupt, interruptLabel: tk.interruptLabel, pid: null, queue: null, start: tk.t, end: tk.t + 1 });
+      }
+    } else if (last && !last.isInterrupt && last.pid === tk.pid && !tk.dispatch && last.end === tk.t) {
       last.end = tk.t + 1;
     } else {
       segs.push({ pid: tk.pid, queue: tk.queue, start: tk.t, end: tk.t + 1 });
@@ -100,14 +107,15 @@ function exportGanttSVG(simResult, processes, config) {
 
   // Segments
   segs.forEach((s) => {
-    const isIdle = s.pid === null;
+    const isIdle = !s.isInterrupt && s.pid === null;
     const x = (s.start / M) * W;
     const w = Math.max(1, ((s.end - s.start) / M) * W);
-    const fill = isIdle ? '#d1d5db' : (queueColors[s.queue] || '#6b7280');
-    const fg = isIdle ? '#374151' : '#ffffff';
+    const fill = s.isInterrupt ? '#d97706' : isIdle ? '#d1d5db' : (queueColors[s.queue] || '#6b7280');
+    const fg = s.isInterrupt ? '#ffffff' : isIdle ? '#374151' : '#ffffff';
+    const label = s.isInterrupt ? `⚡ ${s.interruptLabel}` : isIdle ? '…' : s.pid;
     svgParts.push(`<rect x="${x}" y="${trackY}" width="${w}" height="${trackH}" fill="${fill}" rx="2"/>`);
     if (w > 16) {
-      svgParts.push(`<text x="${x + w / 2}" y="${trackY + trackH / 2 + 4}" text-anchor="middle" fill="${fg}">${isIdle ? '…' : s.pid}</text>`);
+      svgParts.push(`<text x="${x + w / 2}" y="${trackY + trackH / 2 + 4}" text-anchor="middle" fill="${fg}">${label}</text>`);
     }
   });
 
@@ -127,6 +135,7 @@ function exportGanttSVG(simResult, processes, config) {
 export default function App() {
   const [config, setConfig] = useState(() => DEFAULT_CONFIG());
   const [processes, setProcesses] = useState([]);
+  const [interruptions, setInterruptions] = useState([]);
   const [simResult, setSimResult] = useState(null);
   const [cursor, setCursor] = useState(-1);
   const [status, setStatus] = useState('idle'); // idle | running | paused | finished
@@ -159,7 +168,7 @@ export default function App() {
   const ensureSim = useCallback(() => {
     if (simResult) return simResult;
     try {
-      const res = simulate(processes, config);
+      const res = simulate(processes, config, interruptions);
       setSimResult(res);
       return res;
     } catch (err) {
@@ -167,7 +176,7 @@ export default function App() {
       showToast(err.message);
       return null;
     }
-  }, [simResult, processes, config, showToast]);
+  }, [simResult, processes, config, interruptions, showToast]);
 
   const handleStart = useCallback(() => {
     if (status !== 'idle') return;
@@ -280,8 +289,14 @@ export default function App() {
     setProcesses(newProcs);
   };
 
-  // Importar JSON: { processes, config? }
-  const handleImport = (procs, cfg) => {
+  // Cambios en interrupciones externas
+  const handleInterruptionsChange = (newInterruptions) => {
+    resetSimulation('Se reinició la simulación porque cambiaste las interrupciones.');
+    setInterruptions(newInterruptions);
+  };
+
+  // Importar JSON: { processes, config?, interruptions? }
+  const handleImport = (procs, cfg, ints = []) => {
     resetSimulation();
     if (cfg) {
       // Clamp queue indices to the imported config's queue count
@@ -301,6 +316,7 @@ export default function App() {
       }));
       setProcesses(fixedProcs);
     }
+    setInterruptions(Array.isArray(ints) ? ints : []);
   };
 
   const handleClearProcesses = () => {
@@ -311,7 +327,7 @@ export default function App() {
 
   // Export handlers
   const handleExportJSON = () => {
-    exportJSON(processes, config, simResult);
+    exportJSON(processes, config, simResult, interruptions);
     showToast('Exportado como mlq-simulacion.json');
   };
   const handleExportCSV = () => {
@@ -343,6 +359,7 @@ export default function App() {
         <SimulatorSection
           config={config}
           processes={processes}
+          interruptions={interruptions}
           currentSnapshot={currentSnapshot}
           simResult={simResult}
           cursor={cursor}
@@ -353,6 +370,7 @@ export default function App() {
           onChangeConfig={handleConfigChange}
           onResetConfig={handleResetConfig}
           onProcessesChange={handleProcessesChange}
+          onInterruptionsChange={handleInterruptionsChange}
           onImport={handleImport}
           onClearProcesses={handleClearProcesses}
           onSpeedChange={setSpeed}

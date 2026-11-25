@@ -17,7 +17,6 @@ export default function TheorySection() {
         <TheoryIllustration />
       </div>
 
-      <TheoryCallout />
     </section>
   );
 }

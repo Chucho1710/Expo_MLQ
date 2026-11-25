@@ -37,10 +37,11 @@ export default function CpuSlot({
     return () => clearTimeout(t);
   }, [cpu?.pid, cpu?.executed, progressPct, cpu]);
 
+  const irq = snap ? snap.interrupt : null;
   const finishEvents = snap ? snap.events.filter((e) => e.type === 'finish') : [];
 
   return (
-    <div className={`cpu ${!cpu ? 'idle' : ''}`} aria-live="polite">
+    <div className={`cpu ${irq ? 'is-interrupt' : !cpu ? 'idle' : ''}`} aria-live="polite">
       <div className="cpu-title">
         <span>CPU</span>
         <span className="cpu-time">{snap ? `t = ${snap.t}` : 'detenida'}</span>
@@ -50,12 +51,19 @@ export default function CpuSlot({
         className="cpu-slot"
         data-msg={isFinished ? 'Simulación terminada' : ''}
       >
-        {targetCpu.map((id) => {
-          const proc = procsInfo.get(id);
-          const col = processColors.get(id) || { bg: '#1e293b', fg: '#fff' };
-          const fin = simResult ? simResult.metrics.perProcess.find((m) => m.id === id)?.finish : null;
-          return <ProcessChip key={id} proc={proc} color={col} finishTime={fin} />;
-        })}
+        {irq ? (
+          <div className="cpu-irq-badge">
+            <span>⚡ {irq.label}</span>
+            <small>Rutina de interrupción (resta {irq.remaining} u)</small>
+          </div>
+        ) : (
+          targetCpu.map((id) => {
+            const proc = procsInfo.get(id);
+            const col = processColors.get(id) || { bg: '#1e293b', fg: '#fff' };
+            const fin = simResult ? simResult.metrics.perProcess.find((m) => m.id === id)?.finish : null;
+            return <ProcessChip key={id} proc={proc} color={col} finishTime={fin} />;
+          })
+        )}
       </div>
 
       {/* Alerta de finalización al 100% */}

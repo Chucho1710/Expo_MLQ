@@ -258,7 +258,36 @@ export function validateConfig(config) {
   return errors;
 }
 
-export function validateInput(processes, config) {
+export function validateInterruptions(interruptions) {
+  const errors = [];
+  if (interruptions === undefined || interruptions === null) return errors;
+  if (!Array.isArray(interruptions)) {
+    errors.push('Las interrupciones deben ser una lista.');
+    return errors;
+  }
+  const sorted = [];
+  interruptions.forEach((ir, idx) => {
+    const label = ir && ir.label ? String(ir.label).trim() : `IRQ${idx + 1}`;
+    if (!ir || !Number.isInteger(ir.time) || ir.time < 0 || ir.time > 1000) {
+      errors.push(`Interrupción ${label}: el instante debe ser un entero entre 0 y 1000.`);
+    }
+    if (!ir || !Number.isInteger(ir.duration) || ir.duration < 1 || ir.duration > 100) {
+      errors.push(`Interrupción ${label}: la duración debe ser un entero entre 1 y 100.`);
+    }
+    if (ir && Number.isInteger(ir.time) && Number.isInteger(ir.duration) && ir.duration >= 1) {
+      sorted.push({ label, start: ir.time, end: ir.time + ir.duration });
+    }
+  });
+  sorted.sort((a, b) => a.start - b.start);
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i].start < sorted[i - 1].end) {
+      errors.push(`Las interrupciones ${sorted[i - 1].label} y ${sorted[i].label} se solapan en el tiempo.`);
+    }
+  }
+  return errors;
+}
+
+export function validateInput(processes, config, interruptions = []) {
   const errors = [];
   if (!Array.isArray(processes) || processes.length === 0) errors.push('Agrega al menos un proceso.');
   const cfgErrors = validateConfig(config);
@@ -273,6 +302,7 @@ export function validateInput(processes, config) {
     if (numQueues > 0 && (!Number.isInteger(p.queue) || p.queue < 0 || p.queue >= numQueues)) errors.push(`${p.id}: cola inválida.`);
   });
   cfgErrors.forEach((e) => errors.push(e));
+  validateInterruptions(interruptions).forEach((e) => errors.push(e));
   return errors;
 }
 
@@ -288,8 +318,8 @@ export function orderedReady(list, alg) {
   return arr;
 }
 
-export function simulate(input, config) {
-  const errors = validateInput(input, config);
+export function simulate(input, config, interruptions = []) {
+  const errors = validateInput(input, config, interruptions);
   if (errors.length) throw new Error(errors.join(' '));
 
   const numQueues = config.queues.length;
@@ -302,6 +332,15 @@ export function simulate(input, config) {
     id: p.id, arrival: p.arrival, burst: p.burst, queue: p.queue,
     remaining: p.burst, state: 'new', firstStart: null, finish: null
   }));
+  const irqList = (interruptions || [])
+    .map((ir, idx) => ({
+      id: ir.id || `IRQ${idx + 1}`,
+      label: (ir.label && String(ir.label).trim()) || ir.id || `IRQ${idx + 1}`,
+      time: ir.time,
+      duration: ir.duration
+    }))
+    .sort((a, b) => a.time - b.time);
+
   const ready = Array.from({ length: numQueues }, () => []); // procesos esperando (no ejecutando) por cola
   const algOf = (q) => config.queues[q].algorithm;
   const quantumOf = (q) => config.queues[q].quantum;
@@ -310,6 +349,7 @@ export function simulate(input, config) {
   const snapshots = [];   // una entrada por instante t (incluye el instante final)
   const allEvents = [];
   let cpu = null;         // { proc, qLeft }
+  let activeInterrupt = null; // { id, label, time, duration, remaining }
   let carry = [];         // eventos del final del intervalo anterior (finalizaciones)
   let expired = null;     // { proc, q } quantum agotado en el intervalo anterior
   let t = 0, busy = 0, ctx = 0, preemptions = 0;
@@ -322,8 +362,9 @@ export function simulate(input, config) {
   let quotaLeft = Array(numQueues).fill(0);
   let selKind = 'priority';   // por qué se eligió la cola: 'priority' | 'quota' | 'borrow'
 
-  const maxArrival = Math.max(...input.map((p) => p.arrival));
-  const maxTime = input.reduce((s, p) => s + p.burst, 0) + maxArrival + 2;
+  const maxArrival = Math.max(...input.map((p) => p.arrival), ...irqList.map((ir) => ir.time), 0);
+  const totalIrqDur = irqList.reduce((s, ir) => s + ir.duration, 0);
+  const maxTime = input.reduce((s, p) => s + p.burst, 0) + totalIrqDur + maxArrival + 2;
 
   /** Cola que debe tener la CPU en este instante según la política entre colas. */
   function selectQueue() {
@@ -439,7 +480,7 @@ export function simulate(input, config) {
     }
 
     /* (c) ¿Terminó todo? Se registra la instantánea final y se sale. */
-    if (procs.every((p) => p.state === 'done')) {
+    if (procs.every((p) => p.state === 'done') && !activeInterrupt) {
       add('info', `Todos los procesos finalizaron. Tiempo total de simulación (makespan) = ${t}.`);
       snapshots.push(makeSnapshot(t, ev, ev.map((e) => ({ type: e.type, text: e.text })), null, null));
       ev.forEach((e) => allEvents.push(e));
@@ -455,11 +496,38 @@ export function simulate(input, config) {
       add('cycle', `Comienza el ciclo ${t / cycleLen + 1} (${cycleLen} unidades): ${summary} unidades de CPU.`, { cycle: t / cycleLen + 1 });
     }
 
+    /* (c3) Interrupción externa programada para el instante t */
+    const startingIrq = !activeInterrupt ? irqList.find((ir) => ir.time === t) : null;
+    if (startingIrq) {
+      if (cpu) {
+        const old = cpu.proc;
+        const cq = old.queue;
+        add('preempt',
+          `Interrupción externa ${startingIrq.label} (duración ${startingIrq.duration} u): ${old.id} (cola ${qName(cq)}) es interrumpido y conserva su tiempo restante (${old.remaining}).`,
+          { pid: old.id, queue: cq, cause: 'external_irq' });
+        old.state = 'interrupted';
+        ready[cq].unshift(old);
+        preemptions++;
+        cpu = null;
+      } else {
+        add('interrupt',
+          `Interrupción externa ${startingIrq.label} en t=${t} (duración ${startingIrq.duration} u): la CPU atiende la rutina de interrupción.`,
+          { irq: startingIrq.id, label: startingIrq.label });
+      }
+      activeInterrupt = {
+        id: startingIrq.id,
+        label: startingIrq.label,
+        time: startingIrq.time,
+        duration: startingIrq.duration,
+        remaining: startingIrq.duration
+      };
+    }
+
     /* (d) Decisión entre colas: ¿se interrumpe al proceso actual? */
-    const sel = selectQueue();
+    const sel = activeInterrupt ? { q: null, kind: null } : selectQueue();
     const top = sel.q;
     selKind = sel.kind;
-    if (cpu) {
+    if (!activeInterrupt && cpu) {
       const old = cpu.proc;
       const cq = old.queue;
       if (top !== cq) {
@@ -501,9 +569,9 @@ export function simulate(input, config) {
       }
     }
 
-    /* (e) Despacho: si la CPU está libre se elige cola y luego proceso */
+    /* (e) Despacho: si la CPU está libre y no hay interrupción externa se elige cola y luego proceso */
     let dispatched = false, ctxFrom = null, sameAsBefore = false, queueReason = null, dispatchText = null;
-    if (!cpu) {
+    if (!activeInterrupt && !cpu) {
       const q = top;
       if (q !== null) {
         const candidates = orderedReady(ready[q], algOf(q));
@@ -561,13 +629,40 @@ export function simulate(input, config) {
       lines.push({ type: 'info', text: `${p.id} continúa ejecutándose en la cola ${qName(p.queue)}: ${why}${sup}` });
     }
     waitingLines().forEach((l) => lines.push({ type: 'wait', text: l }));
-    if (!cpu) lines.push({ type: 'idle', text: 'No hay ningún proceso listo; la CPU espera la llegada del siguiente proceso.' });
+    if (activeInterrupt) {
+      lines.push({
+        type: 'interrupt',
+        text: `Interrupción externa ${activeInterrupt.label} en curso: la CPU atiende la rutina (restan ${activeInterrupt.remaining} de ${activeInterrupt.duration} u).`
+      });
+    } else if (!cpu) {
+      lines.push({ type: 'idle', text: 'No hay ningún proceso listo; la CPU espera la llegada del siguiente proceso.' });
+    }
 
     snapshots.push(makeSnapshot(t, ev, lines, top, { dispatched }));
     ev.forEach((e) => allEvents.push(e));
 
     /* (g) Ejecutar el intervalo [t, t+1) */
-    if (cpu) {
+    if (activeInterrupt) {
+      ticks.push({
+        t,
+        pid: null,
+        queue: null,
+        interrupt: activeInterrupt.id,
+        interruptLabel: activeInterrupt.label,
+        dispatch: false,
+        ctxFrom: null
+      });
+      activeInterrupt.remaining--;
+      lastRunPid = null;
+      if (activeInterrupt.remaining === 0) {
+        carry.push({
+          t: t + 1,
+          type: 'interrupt_end',
+          text: `Finaliza la interrupción externa ${activeInterrupt.label}. La CPU queda disponible.`
+        });
+        activeInterrupt = null;
+      }
+    } else if (cpu) {
       const p = cpu.proc;
       ticks.push({ t, pid: p.id, queue: p.queue, dispatch: dispatched, ctxFrom });
       p.remaining--;
@@ -605,6 +700,13 @@ export function simulate(input, config) {
         burst: cpu.proc.burst, executed: cpu.proc.burst - cpu.proc.remaining, remaining: cpu.proc.remaining,
         quantum: (algOf(cpu.proc.queue) === 'RR' && isQueuePreemptive(config, cpu.proc.queue)) ? quantumOf(cpu.proc.queue) : null,
         qLeft: cpu.qLeft
+      } : null,
+      interrupt: activeInterrupt ? {
+        id: activeInterrupt.id,
+        label: activeInterrupt.label,
+        time: activeInterrupt.time,
+        duration: activeInterrupt.duration,
+        remaining: activeInterrupt.remaining
       } : null,
       procs: procs.map((p) => ({
         id: p.id, queue: p.queue, arrival: p.arrival, burst: p.burst,
@@ -651,7 +753,7 @@ export function computeMetrics(procs, busy, makespan, contextSwitches, preemptio
 
 const defaultExport = {
   QUEUES, QUEUE_PALETTE, MAX_QUEUES, ALGORITHMS, SCENARIOS, DEFAULT_CONFIG,
-  simulate, computeMetrics, validateInput, validateConfig, allocateQuotas,
+  simulate, computeMetrics, validateInput, validateConfig, validateInterruptions, allocateQuotas,
   naturalCompare, orderedReady, queueName, queueDescription, queuePriorityLabel,
   queuePalette, luminance, mixHex, getProcessColors, isQueuePreemptive, getQueueModalityLabel
 };

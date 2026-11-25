@@ -10,6 +10,7 @@ import TelemetrySection from './telemetry/TelemetrySection.jsx';
 export default function SimulatorSection({
   config,
   processes,
+  interruptions,
   currentSnapshot,
   simResult,
   cursor,
@@ -20,6 +21,7 @@ export default function SimulatorSection({
   onChangeConfig,
   onResetConfig,
   onProcessesChange,
+  onInterruptionsChange,
   onImport,
   onClearProcesses,
   onSpeedChange,
@@ -48,9 +50,11 @@ export default function SimulatorSection({
         <QueuesAndProcessesSection
           config={config}
           processes={processes}
+          interruptions={interruptions}
           onChangeConfig={onChangeConfig}
           onResetConfig={onResetConfig}
           onProcessesChange={onProcessesChange}
+          onInterruptionsChange={onInterruptionsChange}
           onImport={onImport}
           onClearProcesses={onClearProcesses}
           toast={toast}

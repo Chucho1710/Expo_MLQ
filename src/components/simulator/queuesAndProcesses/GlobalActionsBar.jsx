@@ -1,45 +1,17 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
+import ImportJsonModal from './ImportJsonModal.jsx';
 import {
   ALGORITHMS,
   MAX_QUEUES,
   queueName,
   queuePriorityLabel,
-  DEFAULT_CONFIG
+  validateInterruptions
 } from '../../../engine/mlqEngine.js';
-
-/** Validates and parses a JSON import for processes + optional config */
-function parseImport(raw) {
-  let obj;
-  try { obj = JSON.parse(raw); } catch { throw new Error('JSON inválido.'); }
-
-  // Accept { processes, config } or just an array of processes
-  let processes, config;
-  if (Array.isArray(obj)) {
-    processes = obj;
-    config = null;
-  } else if (obj && Array.isArray(obj.processes)) {
-    processes = obj.processes;
-    config = obj.config || null;
-  } else {
-    throw new Error('El JSON debe contener un array "processes" o ser directamente un array de procesos.');
-  }
-
-  if (!processes.length) throw new Error('El array de procesos está vacío.');
-
-  // Basic field validation
-  processes.forEach((p, i) => {
-    if (!p.id || typeof p.id !== 'string') throw new Error(`Proceso [${i}]: falta el campo "id".`);
-    if (!Number.isInteger(p.arrival) || p.arrival < 0) throw new Error(`${p.id}: "arrival" debe ser un entero ≥ 0.`);
-    if (!Number.isInteger(p.burst) || p.burst < 1) throw new Error(`${p.id}: "burst" debe ser un entero ≥ 1.`);
-    if (!Number.isInteger(p.queue) || p.queue < 0) throw new Error(`${p.id}: "queue" debe ser un entero ≥ 0.`);
-  });
-
-  return { processes, config };
-}
 
 export default function GlobalActionsBar({
   config,
   processes,
+  interruptions = [],
   nextPlaceholderId,
   isPercent,
   sumPct,
@@ -52,12 +24,14 @@ export default function GlobalActionsBar({
   onResetConfig,
   onAddProcess,
   onAddQueue,
+  onInterruptionsChange,
   onImport,
   toast
 }) {
   const [showGlobalAddProc, setShowGlobalAddProc] = useState(false);
   const [showAddQueue, setShowAddQueue] = useState(false);
-  const fileInputRef = useRef(null);
+  const [showAddInterrupt, setShowAddInterrupt] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   // Formulario global de procesos
   const [pId, setPId] = useState('');
@@ -71,6 +45,12 @@ export default function GlobalActionsBar({
   const [qAlg, setQAlg] = useState('RR');
   const [qQuantum, setQQuantum] = useState(2);
   const [qErr, setQErr] = useState('');
+
+  // Formulario de interrupciones externas
+  const [irqLabel, setIrqLabel] = useState('');
+  const [irqTime, setIrqTime] = useState('2');
+  const [irqDuration, setIrqDuration] = useState('2');
+  const [irqErr, setIrqErr] = useState('');
 
   const total = config.queues.length;
   const isMlqPreemptive = config.preemptive !== false;
@@ -141,24 +121,46 @@ export default function GlobalActionsBar({
   };
 
   const handleImportClick = () => {
-    fileInputRef.current?.click();
+    setShowImportModal(true);
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const { processes: procs, config: cfg } = parseImport(ev.target.result);
-        onImport(procs, cfg);
-        toast(`Importados ${procs.length} proceso(s)${cfg ? ' con configuración' : ''}.`);
-      } catch (err) {
-        toast(`Error al importar: ${err.message}`);
-      }
+  const handleImportSuccess = ({ processes: procs, config: cfg, interruptions: ints }) => {
+    onImport(procs, cfg, ints);
+    const parts = [`${procs.length} proceso(s)`];
+    if (cfg) parts.push('configuración');
+    if (ints && ints.length) parts.push(`${ints.length} interrupción(es)`);
+    toast(`Importado: ${parts.join(', ')}.`);
+  };
+
+  const handleCreateInterrupt = (e) => {
+    e.preventDefault();
+    const timeVal = Number(irqTime);
+    const durVal = Number(irqDuration);
+    const nextIdx = interruptions.length + 1;
+    const labelVal = irqLabel.trim() || `IRQ${nextIdx}`;
+    const candidate = {
+      id: `IRQ_${Date.now()}_${nextIdx}`,
+      label: labelVal,
+      time: timeVal,
+      duration: durVal
     };
-    reader.readAsText(file);
+    const nextList = [...interruptions, candidate];
+    const errs = validateInterruptions(nextList);
+    if (errs.length) {
+      setIrqErr(errs[0]);
+      return;
+    }
+    setIrqErr('');
+    onInterruptionsChange(nextList.sort((a, b) => a.time - b.time));
+    toast(`Interrupción "${labelVal}" programada en t = ${timeVal} (${durVal} u).`);
+    setIrqLabel('');
+    setShowAddInterrupt(false);
+  };
+
+  const handleRemoveInterrupt = (id) => {
+    const nextList = interruptions.filter((ir) => ir.id !== id);
+    onInterruptionsChange(nextList);
+    toast('Interrupción eliminada.');
   };
 
   return (
@@ -177,13 +179,6 @@ export default function GlobalActionsBar({
           >
             ↑ Importar JSON
           </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json,application/json"
-            style={{ display: 'none' }}
-            onChange={handleFileChange}
-          />
           <button
             className="btn btn-small btn-outline"
             type="button"
@@ -314,9 +309,22 @@ export default function GlobalActionsBar({
             onClick={() => {
               setShowAddQueue(!showAddQueue);
               setShowGlobalAddProc(false);
+              setShowAddInterrupt(false);
             }}
           >
             {showAddQueue ? 'Cerrar formulario de cola' : '+ Crear Nueva Cola'}
+          </button>
+
+          <button
+            className={`btn btn-small ${showAddInterrupt ? 'btn-primary' : 'btn-outline'}`}
+            type="button"
+            onClick={() => {
+              setShowAddInterrupt(!showAddInterrupt);
+              setShowGlobalAddProc(false);
+              setShowAddQueue(false);
+            }}
+          >
+            {showAddInterrupt ? 'Cerrar interrupción' : '⚡ Añadir Interrupción'}
           </button>
         </div>
 
@@ -415,7 +423,93 @@ export default function GlobalActionsBar({
           </form>
         )}
         {qErr && <p className="form-msg" role="alert">{qErr}</p>}
+
+        {/* Formulario desplegable para programar Interrupción externa */}
+        {showAddInterrupt && (
+          <form className="interrupt-form" onSubmit={handleCreateInterrupt}>
+            <label>
+              Etiqueta / Motivo
+              <input
+                type="text"
+                maxLength="16"
+                placeholder={`IRQ${interruptions.length + 1} (E/S, Disco...)`}
+                value={irqLabel}
+                onChange={(e) => setIrqLabel(e.target.value)}
+              />
+            </label>
+            <label>
+              Instante (t)
+              <input
+                type="number"
+                min="0"
+                max="1000"
+                step="1"
+                value={irqTime}
+                onChange={(e) => setIrqTime(e.target.value)}
+                required
+              />
+            </label>
+            <label>
+              Duración (u)
+              <input
+                type="number"
+                min="1"
+                max="100"
+                step="1"
+                value={irqDuration}
+                onChange={(e) => setIrqDuration(e.target.value)}
+                required
+              />
+            </label>
+            <button className="btn btn-primary" type="submit">
+              ⚡ Programar interrupción
+            </button>
+          </form>
+        )}
+        {irqErr && <p className="form-msg" role="alert">{irqErr}</p>}
+
+        {interruptions.length > 0 && (
+          <div className="interrupts-bar" aria-label="Interrupciones programadas">
+            <span className="interrupts-bar-label">⚡ Interrupciones programadas:</span>
+            <div className="interrupts-pills">
+              {interruptions.map((ir) => (
+                <span key={ir.id} className="interrupt-pill">
+                  <b>{ir.label}</b>
+                  <span>t = {ir.time}</span>
+                  <small>({ir.duration} u)</small>
+                  <button
+                    type="button"
+                    className="interrupt-pill-del"
+                    onClick={() => handleRemoveInterrupt(ir.id)}
+                    aria-label={`Eliminar interrupción ${ir.label}`}
+                    title="Eliminar interrupción"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+            {interruptions.length > 1 && (
+              <button
+                type="button"
+                className="btn btn-small btn-danger"
+                onClick={() => {
+                  onInterruptionsChange([]);
+                  toast('Interrupciones eliminadas.');
+                }}
+              >
+                Vaciar
+              </button>
+            )}
+          </div>
+        )}
       </div>
+
+      <ImportJsonModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImportSuccess={handleImportSuccess}
+      />
     </div>
   );
 }
