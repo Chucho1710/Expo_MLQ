@@ -6,6 +6,7 @@ import GanttChart from './gantt/GanttChart.jsx';
 import GanttTable from './gantt/GanttTable.jsx';
 import LiveProcessTable from './processTable/LiveProcessTable.jsx';
 import TelemetrySection from './telemetry/TelemetrySection.jsx';
+import { useLanguage } from '../../i18n/LanguageContext.jsx';
 
 export default function SimulatorSection({
   config,
@@ -34,15 +35,27 @@ export default function SimulatorSection({
   onReset,
   toast
 }) {
+  const { lang } = useLanguage();
+  const en = lang === 'en';
+
   return (
     <section className="sim-section" id="simulador">
       <div className="wrap">
         <div className="section-head on-dark">
-          <span className="eyebrow">Laboratorio</span>
-          <h2>Simulador interactivo de MLQ</h2>
+          <span className="eyebrow">{en ? 'Laboratory' : 'Laboratorio'}</span>
+          <h2>{en ? 'Interactive MLQ Simulator' : 'Simulador interactivo de MLQ'}</h2>
           <p>
-            Configura las colas con sus procesos y observa cada decisión del planificador.
-            Atajos: <kbd>Espacio</kbd> pausar/continuar · <kbd>→</kbd> siguiente paso · <kbd>←</kbd> paso anterior.
+            {en ? (
+              <>
+                Configure queues with their processes and observe every scheduler decision.
+                Shortcuts: <kbd>Space</kbd> pause/resume · <kbd>→</kbd> next step · <kbd>←</kbd> previous step.
+              </>
+            ) : (
+              <>
+                Configura las colas con sus procesos y observa cada decisión del planificador.
+                Atajos: <kbd>Espacio</kbd> pausar/continuar · <kbd>→</kbd> siguiente paso · <kbd>←</kbd> paso anterior.
+              </>
+            )}
           </p>
         </div>
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import QueueLaneCard from './QueueLaneCard.jsx';
 import GlobalActionsBar from './GlobalActionsBar.jsx';
+import { useLanguage } from '../../../i18n/LanguageContext.jsx';
 import {
   queueName,
   getProcessColors,
@@ -54,6 +55,8 @@ export default function QueuesAndProcessesSection({
   onClearProcesses,
   toast
 }) {
+  const { lang } = useLanguage();
+  const en = lang === 'en';
   const total = config.queues.length;
   const isPercent = config.policy === 'percent';
   const minCycle = Math.max(3, total);
@@ -80,7 +83,11 @@ export default function QueuesAndProcessesSection({
   const handleCycleChange = (e) => {
     const v = Number(e.target.value);
     if (!Number.isInteger(v) || v < minCycle || v > 100) {
-      toast(`El ciclo debe ser un entero entre ${minCycle} y 100 unidades.`);
+      toast(
+        en
+          ? `Cycle must be an integer between ${minCycle} and 100 units.`
+          : `El ciclo debe ser un entero entre ${minCycle} y 100 unidades.`
+      );
       return;
     }
     onChangeConfig({ ...config, cycle: v });
@@ -89,11 +96,11 @@ export default function QueuesAndProcessesSection({
   const handleQueueNameChange = (idx, value) => {
     const val = value.trim();
     if (!val) {
-      toast('El nombre de la cola no puede estar vacío.');
+      toast(en ? 'Queue name cannot be empty.' : 'El nombre de la cola no puede estar vacío.');
       return;
     }
-    if (config.queues.some((_, j) => j !== idx && queueName(config, j).toLowerCase() === val.toLowerCase())) {
-      toast(`Ya existe una cola llamada "${val}".`);
+    if (config.queues.some((_, j) => j !== idx && queueName(config, j, lang).toLowerCase() === val.toLowerCase())) {
+      toast(en ? `A queue named "${val}" already exists.` : `Ya existe una cola llamada "${val}".`);
       return;
     }
     const nextQueues = config.queues.map((q, i) => (i === idx ? { ...q, name: val } : q));
@@ -119,7 +126,7 @@ export default function QueuesAndProcessesSection({
   const handleQueueQuantumChange = (idx, value) => {
     const v = Number(value);
     if (!Number.isInteger(v) || v < 1) {
-      toast('El quantum debe ser un número entero mayor o igual a 1.');
+      toast(en ? 'Quantum must be an integer >= 1.' : 'El quantum debe ser un número entero mayor o igual a 1.');
       return;
     }
     const nextQueues = config.queues.map((q, i) => (i === idx ? { ...q, quantum: v } : q));
@@ -129,7 +136,7 @@ export default function QueuesAndProcessesSection({
   const handleQueuePctChange = (idx, value) => {
     const v = Number(value);
     if (!Number.isInteger(v) || v < 1 || v > maxPct) {
-      toast(`El porcentaje debe ser un entero entre 1 y ${maxPct}.`);
+      toast(en ? `Percentage must be an integer between 1 and ${maxPct}.` : `El porcentaje debe ser un entero entre 1 y ${maxPct}.`);
       return;
     }
     const nextPct = [...config.percent];
@@ -157,10 +164,10 @@ export default function QueuesAndProcessesSection({
 
   const removeQueue = (idx) => {
     if (total <= 1) {
-      toast('Debe haber al menos una cola en el sistema.');
+      toast(en ? 'There must be at least one queue in the system.' : 'Debe haber al menos una cola en el sistema.');
       return;
     }
-    const name = queueName(config, idx);
+    const name = queueName(config, idx, lang);
     const nextQueues = config.queues.filter((_, i) => i !== idx);
     const nextPct = [...config.percent];
     rebalancePercentRemove(nextPct, idx);
@@ -178,7 +185,11 @@ export default function QueuesAndProcessesSection({
     });
 
     toast(
-      reassigned
+      en
+        ? reassigned
+          ? `Queue "${name}" deleted (${reassigned} process(es) reassigned).`
+          : `Queue "${name}" deleted.`
+        : reassigned
         ? `Cola "${name}" eliminada (${reassigned} proceso(s) reasignados).`
         : `Cola "${name}" eliminada.`
     );
@@ -189,7 +200,11 @@ export default function QueuesAndProcessesSection({
     const nextQueues = [...config.queues, newQueueTemplate];
     const nextPct = [...config.percent];
     rebalancePercentAdd(nextPct, nextQueues.length);
-    toast(`Cola "${newQueueTemplate.name}" agregada con prioridad nivel ${nextQueues.length}.`);
+    toast(
+      en
+        ? `Queue "${newQueueTemplate.name}" added at priority level ${nextQueues.length}.`
+        : `Cola "${newQueueTemplate.name}" agregada con prioridad nivel ${nextQueues.length}.`
+    );
     onChangeConfig({ ...config, queues: nextQueues, percent: nextPct });
   };
 
@@ -200,16 +215,18 @@ export default function QueuesAndProcessesSection({
   const handleDeleteProcess = (id) => {
     const next = processes.filter((p) => p.id !== id);
     onProcessesChange(next);
-    toast(`Proceso ${id} eliminado.`);
+    toast(en ? `Process ${id} deleted.` : `Proceso ${id} eliminado.`);
   };
 
   return (
     <div className={`panel unified-panel ${isPercent ? 'percent-on' : ''}`} id="panel-config">
       <div className="panel-head">
         <div>
-          <h3>1 · Configuración de Colas y Procesos</h3>
+          <h3>{en ? '1 · Queue & Process Configuration' : '1 · Configuración de Colas y Procesos'}</h3>
           <p className="hint" style={{ margin: '4px 0 0' }}>
-            Cada cola gestiona su propia prioridad y sus procesos asignados. Añade procesos directamente en su respectiva cola.
+            {en
+              ? 'Each queue manages its own priority and assigned processes. Add processes directly inside each queue.'
+              : 'Cada cola gestiona su propia prioridad y sus procesos asignados. Añade procesos directamente en su respectiva cola.'}
           </p>
         </div>
       </div>

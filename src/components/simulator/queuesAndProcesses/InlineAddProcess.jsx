@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLanguage } from '../../../i18n/LanguageContext.jsx';
 
 export default function InlineAddProcess({
   queueIndex,
@@ -9,6 +10,8 @@ export default function InlineAddProcess({
   onCancel,
   toast
 }) {
+  const { lang } = useLanguage();
+  const en = lang === 'en';
   const [id, setId] = useState('');
   const [arrival, setArrival] = useState('0');
   const [burst, setBurst] = useState('3');
@@ -21,29 +24,29 @@ export default function InlineAddProcess({
     const bst = Number(burst);
 
     if (!/^[A-Za-z0-9_-]{1,8}$/.test(idRaw)) {
-      setErr('ID: 1-8 letras, números o guion.');
+      setErr(en ? 'ID: 1-8 letters, numbers, or hyphen.' : 'ID: 1-8 letras, números o guion.');
       return;
     }
     if (processes.some((p) => p.id.toLowerCase() === idRaw.toLowerCase())) {
-      setErr(`Ya existe el proceso ${idRaw}.`);
+      setErr(en ? `Process ${idRaw} already exists.` : `Ya existe el proceso ${idRaw}.`);
       return;
     }
     if (!Number.isInteger(arr) || arr < 0 || arr > 1000) {
-      setErr('Llegada debe ser entero >= 0.');
+      setErr(en ? 'Arrival must be an integer >= 0.' : 'Llegada debe ser entero >= 0.');
       return;
     }
     if (!Number.isInteger(bst) || bst < 1 || bst > 1000) {
-      setErr('Ráfaga debe ser entero >= 1.');
+      setErr(en ? 'Burst must be an integer >= 1.' : 'Ráfaga debe ser entero >= 1.');
       return;
     }
     if (processes.length >= 30) {
-      setErr('Máximo 30 procesos.');
+      setErr(en ? 'Maximum 30 processes.' : 'Máximo 30 procesos.');
       return;
     }
 
     setErr('');
     onAddProcess({ id: idRaw, arrival: arr, burst: bst, queue: queueIndex });
-    toast(`Proceso ${idRaw} añadido a ${queueName}.`);
+    toast(en ? `Process ${idRaw} added to ${queueName}.` : `Proceso ${idRaw} añadido a ${queueName}.`);
     onCancel();
   };
 
@@ -61,7 +64,7 @@ export default function InlineAddProcess({
           />
         </label>
         <label>
-          Llegada
+          {en ? 'Arrival' : 'Llegada'}
           <input
             type="number"
             min="0"
@@ -73,7 +76,7 @@ export default function InlineAddProcess({
           />
         </label>
         <label>
-          Ráfaga
+          {en ? 'Burst' : 'Ráfaga'}
           <input
             type="number"
             min="1"
@@ -90,14 +93,14 @@ export default function InlineAddProcess({
 
       <div className="inline-proc-actions">
         <button className="btn btn-small btn-primary" type="submit">
-          + Añadir a esta cola
+          {en ? '+ Add to this queue' : '+ Añadir a esta cola'}
         </button>
         <button
           className="btn btn-small btn-outline"
           type="button"
           onClick={onCancel}
         >
-          Cancelar
+          {en ? 'Cancel' : 'Cancelar'}
         </button>
       </div>
     </form>

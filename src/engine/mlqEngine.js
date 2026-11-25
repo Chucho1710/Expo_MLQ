@@ -23,19 +23,47 @@ export const QUEUE_PALETTE = [
 ];
 export const MAX_QUEUES = QUEUE_PALETTE.length;
 
-export function queueName(config, idx) {
+const QUEUES_EN = [
+  { name: 'System',      priority: 'HIGH',   description: 'Essential operating system processes.' },
+  { name: 'Interactive', priority: 'MEDIUM', description: 'User-facing interactive applications.' },
+  { name: 'Batch',       priority: 'LOW',    description: 'Batch jobs and background tasks.' }
+];
+
+export function queueName(config, idx, lang = 'es') {
   const q = config && config.queues && config.queues[idx];
-  if (q && typeof q.name === 'string' && q.name.trim()) return q.name.trim();
+  const raw = q && typeof q.name === 'string' ? q.name.trim() : '';
+  if (lang === 'en') {
+    if (!raw) return QUEUES_EN[idx] ? QUEUES_EN[idx].name : `Queue ${idx + 1}`;
+    if (QUEUES[idx] && raw === QUEUES[idx].name) return QUEUES_EN[idx].name;
+    if (/^Cola\s+(\d+)$/i.test(raw)) return raw.replace(/^Cola\s+/i, 'Queue ');
+    return raw;
+  }
+  if (raw) return raw;
   return QUEUES[idx] ? QUEUES[idx].name : `Cola ${idx + 1}`;
 }
 
-export function queueDescription(config, idx) {
+export function queueDescription(config, idx, lang = 'es') {
   const q = config && config.queues && config.queues[idx];
-  if (q && typeof q.description === 'string' && q.description.trim()) return q.description.trim();
+  const raw = q && typeof q.description === 'string' ? q.description.trim() : '';
+  if (lang === 'en') {
+    if (!raw || (QUEUES[idx] && raw === QUEUES[idx].description)) {
+      return QUEUES_EN[idx] ? QUEUES_EN[idx].description : `Custom queue with priority level ${idx + 1}.`;
+    }
+    const lvlMatch = /^Cola de prioridad nivel (\d+)\.$/i.exec(raw);
+    if (lvlMatch) return `Priority level ${lvlMatch[1]} queue.`;
+    return raw;
+  }
+  if (raw) return raw;
   return QUEUES[idx] ? QUEUES[idx].description : `Cola personalizada de prioridad nivel ${idx + 1}.`;
 }
 
-export function queuePriorityLabel(idx, total) {
+export function queuePriorityLabel(idx, total, lang = 'es') {
+  if (lang === 'en') {
+    if (total === 3 && QUEUES_EN[idx]) return QUEUES_EN[idx].priority;
+    if (idx === 0) return total === 1 ? 'SINGLE' : 'Lvl. 1 · HIGH';
+    if (idx === total - 1) return `Lvl. ${total} · LOW`;
+    return `Lvl. ${idx + 1}`;
+  }
   if (total === 3 && QUEUES[idx]) return QUEUES[idx].priority;
   if (idx === 0) return total === 1 ? 'ÚNICA' : 'Niv. 1 · ALTA';
   if (idx === total - 1) return `Niv. ${total} · BAJA`;
@@ -119,14 +147,29 @@ export function isQueuePreemptive(config, qIdx) {
   return false;
 }
 
-export function getQueueModalityLabel(config, qIdx) {
+export function getQueueModalityLabel(config, qIdx, lang = 'es') {
   const q = config && config.queues && config.queues[qIdx];
-  if (!q) return 'No expropiativo';
+  if (!q) return lang === 'en' ? 'Non-preemptive' : 'No expropiativo';
   const pre = isQueuePreemptive(config, qIdx);
+  if (lang === 'en') {
+    if (q.algorithm === 'FCFS') return 'Non-preemptive';
+    if (q.algorithm === 'RR') return `Preemptive (q = ${q.quantum})`;
+    if (q.algorithm === 'SJF' || q.algorithm === 'SRTF') return pre ? 'Preemptive (SRTF)' : 'Non-preemptive (SJF)';
+    return pre ? 'Preemptive' : 'Non-preemptive';
+  }
   if (q.algorithm === 'FCFS') return 'No expropiativo';
   if (q.algorithm === 'RR') return `Expropiativo (q = ${q.quantum})`;
   if (q.algorithm === 'SJF' || q.algorithm === 'SRTF') return pre ? 'Expropiativo (SRTF)' : 'No expropiativo (SJF)';
   return pre ? 'Expropiativo' : 'No expropiativo';
+}
+
+export function getAlgorithmModality(algKey, lang = 'es') {
+  const alg = ALGORITHMS[algKey];
+  if (!alg) return '';
+  if (lang !== 'en') return alg.modality;
+  if (algKey === 'SRTF') return 'Preemptive';
+  if (algKey === 'RR') return 'Preemptive (by quantum)';
+  return 'Non-preemptive';
 }
 
 export const DEFAULT_CONFIG = () => ({
@@ -258,21 +301,29 @@ export function validateConfig(config) {
   return errors;
 }
 
-export function validateInterruptions(interruptions) {
+export function validateInterruptions(interruptions, lang = 'es') {
   const errors = [];
   if (interruptions === undefined || interruptions === null) return errors;
   if (!Array.isArray(interruptions)) {
-    errors.push('Las interrupciones deben ser una lista.');
+    errors.push(lang === 'en' ? 'Interruptions must be a list.' : 'Las interrupciones deben ser una lista.');
     return errors;
   }
   const sorted = [];
   interruptions.forEach((ir, idx) => {
     const label = ir && ir.label ? String(ir.label).trim() : `IRQ${idx + 1}`;
     if (!ir || !Number.isInteger(ir.time) || ir.time < 0 || ir.time > 1000) {
-      errors.push(`Interrupción ${label}: el instante debe ser un entero entre 0 y 1000.`);
+      errors.push(
+        lang === 'en'
+          ? `Interruption ${label}: time must be an integer between 0 and 1000.`
+          : `Interrupción ${label}: el instante debe ser un entero entre 0 y 1000.`
+      );
     }
     if (!ir || !Number.isInteger(ir.duration) || ir.duration < 1 || ir.duration > 100) {
-      errors.push(`Interrupción ${label}: la duración debe ser un entero entre 1 y 100.`);
+      errors.push(
+        lang === 'en'
+          ? `Interruption ${label}: duration must be an integer between 1 and 100.`
+          : `Interrupción ${label}: la duración debe ser un entero entre 1 y 100.`
+      );
     }
     if (ir && Number.isInteger(ir.time) && Number.isInteger(ir.duration) && ir.duration >= 1) {
       sorted.push({ label, start: ir.time, end: ir.time + ir.duration });
@@ -281,28 +332,44 @@ export function validateInterruptions(interruptions) {
   sorted.sort((a, b) => a.start - b.start);
   for (let i = 1; i < sorted.length; i++) {
     if (sorted[i].start < sorted[i - 1].end) {
-      errors.push(`Las interrupciones ${sorted[i - 1].label} y ${sorted[i].label} se solapan en el tiempo.`);
+      errors.push(
+        lang === 'en'
+          ? `Interruptions ${sorted[i - 1].label} and ${sorted[i].label} overlap in time.`
+          : `Las interrupciones ${sorted[i - 1].label} y ${sorted[i].label} se solapan en el tiempo.`
+      );
     }
   }
   return errors;
 }
 
-export function validateInput(processes, config, interruptions = []) {
+export function validateInput(processes, config, interruptions = [], lang = 'es') {
   const errors = [];
-  if (!Array.isArray(processes) || processes.length === 0) errors.push('Agrega al menos un proceso.');
+  if (!Array.isArray(processes) || processes.length === 0) {
+    errors.push(lang === 'en' ? 'Add at least one process.' : 'Agrega al menos un proceso.');
+  }
   const cfgErrors = validateConfig(config);
   const numQueues = config && Array.isArray(config.queues) ? config.queues.length : 0;
   const seen = new Set();
   (processes || []).forEach((p) => {
-    if (!/^[A-Za-z0-9_-]{1,8}$/.test(String(p.id))) errors.push(`Identificador inválido: "${p.id}".`);
-    if (seen.has(p.id)) errors.push(`Identificador repetido: ${p.id}.`);
+    if (!/^[A-Za-z0-9_-]{1,8}$/.test(String(p.id))) {
+      errors.push(lang === 'en' ? `Invalid ID: "${p.id}".` : `Identificador inválido: "${p.id}".`);
+    }
+    if (seen.has(p.id)) {
+      errors.push(lang === 'en' ? `Duplicate ID: ${p.id}.` : `Identificador repetido: ${p.id}.`);
+    }
     seen.add(p.id);
-    if (!Number.isInteger(p.arrival) || p.arrival < 0 || p.arrival > 1000) errors.push(`${p.id}: la llegada debe ser un entero entre 0 y 1000.`);
-    if (!Number.isInteger(p.burst) || p.burst < 1 || p.burst > 1000) errors.push(`${p.id}: la ráfaga debe ser un entero entre 1 y 1000.`);
-    if (numQueues > 0 && (!Number.isInteger(p.queue) || p.queue < 0 || p.queue >= numQueues)) errors.push(`${p.id}: cola inválida.`);
+    if (!Number.isInteger(p.arrival) || p.arrival < 0 || p.arrival > 1000) {
+      errors.push(lang === 'en' ? `${p.id}: arrival must be an integer between 0 and 1000.` : `${p.id}: la llegada debe ser un entero entre 0 y 1000.`);
+    }
+    if (!Number.isInteger(p.burst) || p.burst < 1 || p.burst > 1000) {
+      errors.push(lang === 'en' ? `${p.id}: burst must be an integer between 1 and 1000.` : `${p.id}: la ráfaga debe ser un entero entre 1 y 1000.`);
+    }
+    if (numQueues > 0 && (!Number.isInteger(p.queue) || p.queue < 0 || p.queue >= numQueues)) {
+      errors.push(lang === 'en' ? `${p.id}: invalid queue.` : `${p.id}: cola inválida.`);
+    }
   });
   cfgErrors.forEach((e) => errors.push(e));
-  validateInterruptions(interruptions).forEach((e) => errors.push(e));
+  validateInterruptions(interruptions, lang).forEach((e) => errors.push(e));
   return errors;
 }
 
@@ -318,13 +385,15 @@ export function orderedReady(list, alg) {
   return arr;
 }
 
-export function simulate(input, config, interruptions = []) {
-  const errors = validateInput(input, config, interruptions);
+export function simulate(input, config, interruptions = [], options = {}) {
+  const lang = options && options.lang === 'en' ? 'en' : 'es';
+  const en = lang === 'en';
+  const errors = validateInput(input, config, interruptions, lang);
   if (errors.length) throw new Error(errors.join(' '));
 
   const numQueues = config.queues.length;
   const queueIndices = Array.from({ length: numQueues }, (_, i) => i);
-  const qName = (q) => queueName(config, q);
+  const qName = (q) => queueName(config, q, lang);
 
   const mlqPreemptive = config.preemptive !== false; // true por defecto
 
@@ -385,41 +454,73 @@ export function simulate(input, config, interruptions = []) {
   function reasonForQueue(q) {
     if (percentMode) {
       if (selKind === 'quota') {
-        return `a la cola ${qName(q)} aún le quedan ${quotaLeft[q]} de ${quotaAlloc[q]} unidades de cuota en este ciclo y es la de mayor prioridad entre las colas con procesos listos y cuota disponible`;
+        return en
+          ? `queue ${qName(q)} still has ${quotaLeft[q]} of ${quotaAlloc[q]} quota units left in this cycle and has the highest priority among ready queues with available quota`
+          : `a la cola ${qName(q)} aún le quedan ${quotaLeft[q]} de ${quotaAlloc[q]} unidades de cuota en este ciclo y es la de mayor prioridad entre las colas con procesos listos y cuota disponible`;
       }
-      return `todas las colas con procesos ya agotaron su cuota del ciclo, así que la CPU aprovecha el tiempo sobrante en la de mayor prioridad (${qName(q)}) para no quedar ociosa`;
+      return en
+        ? `all queues with processes have exhausted their cycle quota, so the CPU uses spare time on the highest-priority ready queue (${qName(q)}) to avoid staying idle`
+        : `todas las colas con procesos ya agotaron su cuota del ciclo, así que la CPU aprovecha el tiempo sobrante en la de mayor prioridad (${qName(q)}) para no quedar ociosa`;
     }
-    if (q === 0) return 'tiene la prioridad más alta y tiene procesos listos';
-    if (q === 1) return `la cola ${qName(0)} está vacía y ${qName(1)} es la siguiente en prioridad`;
+    if (q === 0) return en ? 'it has the highest priority and has ready processes' : 'tiene la prioridad más alta y tiene procesos listos';
+    if (q === 1) return en ? `queue ${qName(0)} is empty and ${qName(1)} is next in priority` : `la cola ${qName(0)} está vacía y ${qName(1)} es la siguiente en prioridad`;
     const higher = Array.from({ length: q }, (_, i) => qName(i));
-    const joined = `${higher.slice(0, -1).join(', ')} y ${higher[higher.length - 1]}`;
-    return `las colas ${joined} están vacías, por lo que ${qName(q)} puede usar la CPU`;
+    const joined = en
+      ? `${higher.slice(0, -1).join(', ')} and ${higher[higher.length - 1]}`
+      : `${higher.slice(0, -1).join(', ')} y ${higher[higher.length - 1]}`;
+    return en
+      ? `queues ${joined} are empty, so ${qName(q)} can use the CPU`
+      : `las colas ${joined} están vacías, por lo que ${qName(q)} puede usar la CPU`;
   }
 
   function reasonInQueue(chosen, candidates, resumed) {
     const q = chosen.queue, alg = algOf(q);
-    const head = `En la cola ${qName(q)} se aplica ${ALGORITHMS[alg].short}: se elige ${chosen.id}`;
+    const head = en
+      ? `In queue ${qName(q)}, ${ALGORITHMS[alg].short} is applied: ${chosen.id} is selected`
+      : `En la cola ${qName(q)} se aplica ${ALGORITHMS[alg].short}: se elige ${chosen.id}`;
     const only = candidates.length === 1;
     const next = candidates[1];
     if (alg === 'FCFS') {
-      if (only) return `${head} porque es el único proceso listo de la cola.`;
-      const tie = next && next.arrival === chosen.arrival ? ' (empate en la llegada: se desempata por identificador)' : '';
-      return `${head} porque llegó primero (llegada = ${chosen.arrival})${tie}.`;
+      if (only) return en ? `${head} because it is the only ready process in the queue.` : `${head} porque es el único proceso listo de la cola.`;
+      const tie = next && next.arrival === chosen.arrival
+        ? (en ? ' (arrival tie: broken by ID)' : ' (empate en la llegada: se desempata por identificador)')
+        : '';
+      return en
+        ? `${head} because it arrived first (arrival = ${chosen.arrival})${tie}.`
+        : `${head} porque llegó primero (llegada = ${chosen.arrival})${tie}.`;
     }
     if (alg === 'SJF' || alg === 'SRTF') {
-      const what = (alg === 'SJF' && !isQueuePreemptive(config, q)) ? 'la menor ráfaga' : 'el menor tiempo restante';
-      const note = resumed ? ' (había sido interrumpido y conserva su tiempo restante)' : '';
-      if (only) return `${head} porque es el único proceso listo de la cola${note}.`;
-      const tie = next && next.remaining === chosen.remaining ? '; hay empate, así que se elige el que llegó primero o, si persiste, el de menor identificador' : '';
-      return `${head} porque tiene ${what} entre los procesos listos (${chosen.remaining} unidades)${tie}${note}.`;
+      const what = (alg === 'SJF' && !isQueuePreemptive(config, q))
+        ? (en ? 'the shortest burst' : 'la menor ráfaga')
+        : (en ? 'the shortest remaining time' : 'el menor tiempo restante');
+      const note = resumed
+        ? (en ? ' (it was previously preempted and keeps its remaining time)' : ' (había sido interrumpido y conserva su tiempo restante)')
+        : '';
+      if (only) return en ? `${head} because it is the only ready process in the queue${note}.` : `${head} porque es el único proceso listo de la cola${note}.`;
+      const tie = next && next.remaining === chosen.remaining
+        ? (en ? '; there is a tie, so the earlier arrival or lowest ID wins' : '; hay empate, así que se elige el que llegó primero o, si persiste, el de menor identificador')
+        : '';
+      return en
+        ? `${head} because it has ${what} among ready processes (${chosen.remaining} units)${tie}${note}.`
+        : `${head} porque tiene ${what} entre los procesos listos (${chosen.remaining} unidades)${tie}${note}.`;
     }
     const isPre = isQueuePreemptive(config, q);
-    const note = resumed ? ' Había sido interrumpido: conserva su tiempo restante pero recibe un quantum nuevo.' : '';
+    const note = resumed
+      ? (en ? ' It was previously preempted: it keeps its remaining time and receives a new quantum.' : ' Había sido interrumpido: conserva su tiempo restante pero recibe un quantum nuevo.')
+      : '';
     if (!isPre) {
-      return `${head} en modo Round Robin no expropiativo: ejecutará hasta completar su ráfaga.${note}`;
+      return en
+        ? `${head} in non-preemptive Round Robin mode: it will run until its burst completes.${note}`
+        : `${head} en modo Round Robin no expropiativo: ejecutará hasta completar su ráfaga.${note}`;
     }
-    if (only) return `${head} porque es el único proceso listo de la cola; recibe un quantum de ${quantumOf(q)} unidades.${note}`;
-    return `${head} porque está al frente de la cola circular; recibe un quantum de ${quantumOf(q)} unidades.${note}`;
+    if (only) {
+      return en
+        ? `${head} because it is the only ready process in the queue; it receives a quantum of ${quantumOf(q)} units.${note}`
+        : `${head} porque es el único proceso listo de la cola; recibe un quantum de ${quantumOf(q)} unidades.${note}`;
+    }
+    return en
+      ? `${head} because it is at the front of the circular queue; it receives a quantum of ${quantumOf(q)} units.${note}`
+      : `${head} porque está al frente de la cola circular; recibe un quantum de ${quantumOf(q)} unidades.${note}`;
   }
 
   function waitingLines() {
@@ -431,30 +532,53 @@ export function simulate(input, config, interruptions = []) {
       if (!list.length) continue;
       const ids = list.map((p) => p.id).join(', ');
       if (!percentMode && q < cq && !mlqPreemptive) {
-        lines.push(`Esperan en la cola ${qName(q)}: ${ids}. Tienen mayor prioridad que la cola ${qName(cq)}, pero MLQ está en modo NO EXPROPIATIVO, por lo que esperan a que ${cpu.proc.id} termine.`);
+        lines.push(
+          en
+            ? `Waiting in queue ${qName(q)}: ${ids}. They have higher priority than ${qName(cq)}, but MLQ is in NON-PREEMPTIVE mode, so they wait for ${cpu.proc.id} to finish.`
+            : `Esperan en la cola ${qName(q)}: ${ids}. Tienen mayor prioridad que la cola ${qName(cq)}, pero MLQ está en modo NO EXPROPIATIVO, por lo que esperan a que ${cpu.proc.id} termine.`
+        );
       } else if (percentMode && q !== cq) {
         const why = quotaLeft[q] <= 0
-          ? `la cola ${qName(q)} ya consumió su cuota (${quotaAlloc[q]} unidades) de este ciclo`
-          : `ahora le corresponde a la cola ${qName(cq)} y la cola ${qName(q)} sigue después, por orden de prioridad dentro del ciclo`;
-        lines.push(`Esperan en la cola ${qName(q)}: ${ids}. ${why[0].toUpperCase()}${why.slice(1)}.`);
+          ? (en ? `queue ${qName(q)} already used its quota (${quotaAlloc[q]} units) for this cycle` : `la cola ${qName(q)} ya consumió su cuota (${quotaAlloc[q]} unidades) de este ciclo`)
+          : (en ? `it is currently ${qName(cq)}'s turn and ${qName(q)} follows by priority within the cycle` : `ahora le corresponde a la cola ${qName(cq)} y la cola ${qName(q)} sigue después, por orden de prioridad dentro del ciclo`);
+        lines.push(
+          en
+            ? `Waiting in queue ${qName(q)}: ${ids}. ${why[0].toUpperCase()}${why.slice(1)}.`
+            : `Esperan en la cola ${qName(q)}: ${ids}. ${why[0].toUpperCase()}${why.slice(1)}.`
+        );
       } else if (q > cq) {
-        lines.push(`Esperan en la cola ${qName(q)}: ${ids}. La cola ${qName(cq)} tiene mayor prioridad y la CPU está ocupada por ${cpu.proc.id}.`);
+        lines.push(
+          en
+            ? `Waiting in queue ${qName(q)}: ${ids}. Queue ${qName(cq)} has higher priority and the CPU is busy with ${cpu.proc.id}.`
+            : `Esperan en la cola ${qName(q)}: ${ids}. La cola ${qName(cq)} tiene mayor prioridad y la CPU está ocupada por ${cpu.proc.id}.`
+        );
       } else if (q === cq) {
         const pre = isQueuePreemptive(config, q);
-        const why = {
-          FCFS: 'FCFS atiende por orden de llegada y no interrumpe al proceso que ya está ejecutando.',
-          SJF: pre ? 'ninguno tiene un tiempo restante estrictamente menor que el del proceso en ejecución (SRTF).' : 'SJF en modo no expropiativo no interrumpe al proceso en ejecución.',
-          SRTF: 'ninguno tiene un tiempo restante estrictamente menor que el del proceso en ejecución.',
-          RR: pre ? 'deben esperar su turno en la cola circular hasta que se agote el quantum.' : 'Round Robin en modo no expropiativo permite al proceso actual ejecutar hasta terminar.'
-        }[algOf(q)];
-        lines.push(`Esperan en la cola ${qName(q)}: ${ids}. ${cpu.proc.id} ya tiene la CPU; ${why}`);
+        const why = en
+          ? {
+              FCFS: 'FCFS serves in arrival order and does not preempt the running process.',
+              SJF: pre ? 'none has a strictly shorter remaining time than the running process (SRTF).' : 'non-preemptive SJF does not interrupt the running process.',
+              SRTF: 'none has a strictly shorter remaining time than the running process.',
+              RR: pre ? 'they must wait their turn in the circular queue until the quantum expires.' : 'non-preemptive Round Robin lets the current process run to completion.'
+            }[algOf(q)]
+          : {
+              FCFS: 'FCFS atiende por orden de llegada y no interrumpe al proceso que ya está ejecutando.',
+              SJF: pre ? 'ninguno tiene un tiempo restante estrictamente menor que el del proceso en ejecución (SRTF).' : 'SJF en modo no expropiativo no interrumpe al proceso en ejecución.',
+              SRTF: 'ninguno tiene un tiempo restante estrictamente menor que el del proceso en ejecución.',
+              RR: pre ? 'deben esperar su turno en la cola circular hasta que se agote el quantum.' : 'Round Robin en modo no expropiativo permite al proceso actual ejecutar hasta terminar.'
+            }[algOf(q)];
+        lines.push(
+          en
+            ? `Waiting in queue ${qName(q)}: ${ids}. ${cpu.proc.id} holds the CPU; ${why}`
+            : `Esperan en la cola ${qName(q)}: ${ids}. ${cpu.proc.id} ya tiene la CPU; ${why}`
+        );
       }
     }
     return lines;
   }
 
   while (true) {
-    if (t > maxTime) throw new Error('La simulación excedió el tiempo máximo esperado (posible bucle).');
+    if (t > maxTime) throw new Error(en ? 'Simulation exceeded maximum expected time (possible loop).' : 'La simulación excedió el tiempo máximo esperado (posible bucle).');
     const ev = carry; carry = [];
     const add = (type, text, extra) => ev.push(Object.assign({ t, type, text }, extra || {}));
 
@@ -463,7 +587,11 @@ export function simulate(input, config, interruptions = []) {
     arriving.forEach((p) => {
       p.state = 'ready';
       ready[p.queue].push(p);
-      add('arrival', `${p.id} llega a la cola ${qName(p.queue)} (ráfaga ${p.burst}).`, { pid: p.id, queue: p.queue });
+      add(
+        'arrival',
+        en ? `${p.id} arrives at queue ${qName(p.queue)} (burst ${p.burst}).` : `${p.id} llega a la cola ${qName(p.queue)} (ráfaga ${p.burst}).`,
+        { pid: p.id, queue: p.queue }
+      );
     });
 
     /* (b) Quantum agotado en el intervalo anterior: vuelve al final, DESPUÉS de las llegadas */
@@ -473,15 +601,16 @@ export function simulate(input, config, interruptions = []) {
       proc.state = 'ready';
       ready[q].push(proc);
       add('quantum',
-        `Finaliza el quantum de ${proc.id} (q = ${quantumOf(q)}). El proceso regresa al final de la cola ${qName(q)}.` +
-        (alone ? ' No hay otros procesos listos en esa cola.' : ''),
+        en
+          ? `${proc.id}'s quantum expired (q = ${quantumOf(q)}). It returns to the back of queue ${qName(q)}.` + (alone ? ' No other processes are ready in that queue.' : '')
+          : `Finaliza el quantum de ${proc.id} (q = ${quantumOf(q)}). El proceso regresa al final de la cola ${qName(q)}.` + (alone ? ' No hay otros procesos listos en esa cola.' : ''),
         { pid: proc.id, queue: q });
       expired = null;
     }
 
     /* (c) ¿Terminó todo? Se registra la instantánea final y se sale. */
     if (procs.every((p) => p.state === 'done') && !activeInterrupt) {
-      add('info', `Todos los procesos finalizaron. Tiempo total de simulación (makespan) = ${t}.`);
+      add('info', en ? `All processes finished. Total simulation time (makespan) = ${t}.` : `Todos los procesos finalizaron. Tiempo total de simulación (makespan) = ${t}.`);
       snapshots.push(makeSnapshot(t, ev, ev.map((e) => ({ type: e.type, text: e.text })), null, null));
       ev.forEach((e) => allEvents.push(e));
       break;
@@ -492,8 +621,18 @@ export function simulate(input, config, interruptions = []) {
     if (newCycle) {
       quotaLeft = quotaAlloc.slice();
       const parts = quotaAlloc.map((v, i) => `${qName(i)} ${v}`);
-      const summary = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} y ${parts[parts.length - 1]}`;
-      add('cycle', `Comienza el ciclo ${t / cycleLen + 1} (${cycleLen} unidades): ${summary} unidades de CPU.`, { cycle: t / cycleLen + 1 });
+      const summary = parts.length === 1
+        ? parts[0]
+        : en
+        ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+        : `${parts.slice(0, -1).join(', ')} y ${parts[parts.length - 1]}`;
+      add(
+        'cycle',
+        en
+          ? `Cycle ${t / cycleLen + 1} begins (${cycleLen} units): ${summary} CPU units.`
+          : `Comienza el ciclo ${t / cycleLen + 1} (${cycleLen} unidades): ${summary} unidades de CPU.`,
+        { cycle: t / cycleLen + 1 }
+      );
     }
 
     /* (c3) Interrupción externa programada para el instante t */
@@ -503,7 +642,9 @@ export function simulate(input, config, interruptions = []) {
         const old = cpu.proc;
         const cq = old.queue;
         add('preempt',
-          `Interrupción externa ${startingIrq.label} (duración ${startingIrq.duration} u): ${old.id} (cola ${qName(cq)}) es interrumpido y conserva su tiempo restante (${old.remaining}).`,
+          en
+            ? `External interruption ${startingIrq.label} (duration ${startingIrq.duration} u): ${old.id} (queue ${qName(cq)}) is preempted and keeps its remaining time (${old.remaining}).`
+            : `Interrupción externa ${startingIrq.label} (duración ${startingIrq.duration} u): ${old.id} (cola ${qName(cq)}) es interrumpido y conserva su tiempo restante (${old.remaining}).`,
           { pid: old.id, queue: cq, cause: 'external_irq' });
         old.state = 'interrupted';
         ready[cq].unshift(old);
@@ -511,7 +652,9 @@ export function simulate(input, config, interruptions = []) {
         cpu = null;
       } else {
         add('interrupt',
-          `Interrupción externa ${startingIrq.label} en t=${t} (duración ${startingIrq.duration} u): la CPU atiende la rutina de interrupción.`,
+          en
+            ? `External interruption ${startingIrq.label} at t=${t} (duration ${startingIrq.duration} u): CPU handles the interrupt routine.`
+            : `Interrupción externa ${startingIrq.label} en t=${t} (duración ${startingIrq.duration} u): la CPU atiende la rutina de interrupción.`,
           { irq: startingIrq.id, label: startingIrq.label });
       }
       activeInterrupt = {
@@ -534,17 +677,26 @@ export function simulate(input, config, interruptions = []) {
         let why;
         if (!percentMode) {
           const cause = arriving.filter((p) => p.queue < cq).sort((a, b) => a.queue - b.queue)[0];
-          why = cause ? `porque ${cause.id} llegó a la cola ${qName(cause.queue)}, que tiene mayor prioridad. ` : `porque la cola ${qName(top)}, de mayor prioridad, tiene procesos listos. `;
+          why = cause
+            ? (en ? `because ${cause.id} arrived in higher-priority queue ${qName(cause.queue)}. ` : `porque ${cause.id} llegó a la cola ${qName(cause.queue)}, que tiene mayor prioridad. `)
+            : (en ? `because higher-priority queue ${qName(top)} has ready processes. ` : `porque la cola ${qName(top)}, de mayor prioridad, tiene procesos listos. `);
         } else if (newCycle) {
-          why = `porque comenzó un nuevo ciclo de reparto y la cola ${qName(top)} recibe su cuota de ${quotaAlloc[top]} unidades. `;
+          why = en
+            ? `because a new allocation cycle started and queue ${qName(top)} receives its quota of ${quotaAlloc[top]} units. `
+            : `porque comenzó un nuevo ciclo de reparto y la cola ${qName(top)} recibe su cuota de ${quotaAlloc[top]} unidades. `;
         } else if (quotaLeft[cq] <= 0) {
-          why = `porque la cola ${qName(cq)} agotó su cuota de CPU en este ciclo (${quotaAlloc[cq]} unidades); ahora le corresponde a la cola ${qName(top)}. `;
+          why = en
+            ? `because queue ${qName(cq)} exhausted its CPU quota for this cycle (${quotaAlloc[cq]} units); now it is ${qName(top)}'s turn. `
+            : `porque la cola ${qName(cq)} agotó su cuota de CPU en este ciclo (${quotaAlloc[cq]} unidades); ahora le corresponde a la cola ${qName(top)}. `;
         } else {
-          why = `porque la cola ${qName(top)} tiene cuota disponible en este ciclo y mayor prioridad. `;
+          why = en
+            ? `because queue ${qName(top)} has available quota in this cycle and higher priority. `
+            : `porque la cola ${qName(top)} tiene cuota disponible en este ciclo y mayor prioridad. `;
         }
         add('preempt',
-          `${old.id} (cola ${qName(cq)}) es interrumpido ` + why +
-          `${old.id} conserva su tiempo restante (${old.remaining}) y permanece en su cola ${qName(cq)}.`,
+          en
+            ? `${old.id} (queue ${qName(cq)}) is preempted ` + why + `${old.id} keeps its remaining time (${old.remaining}) and stays in queue ${qName(cq)}.`
+            : `${old.id} (cola ${qName(cq)}) es interrumpido ` + why + `${old.id} conserva su tiempo restante (${old.remaining}) y permanece en su cola ${qName(cq)}.`,
           { pid: old.id, queue: cq, cause: percentMode ? 'quota' : 'queue' });
         old.state = 'interrupted';
         ready[cq].unshift(old); // vuelve al frente de su cola
@@ -557,8 +709,9 @@ export function simulate(input, config, interruptions = []) {
           const best = orderedReady(ready[cq], 'SRTF')[0];
           if (best && best.remaining < old.remaining) {
             add('preempt',
-              `${old.id} es interrumpido porque ${best.id} tiene menor tiempo restante (${best.remaining} < ${old.remaining}) en la misma cola (SJF expropiativo / SRTF). ` +
-              `${old.id} conserva su tiempo restante y vuelve a esperar en la cola ${qName(cq)}.`,
+              en
+                ? `${old.id} is preempted because ${best.id} has shorter remaining time (${best.remaining} < ${old.remaining}) in the same queue (preemptive SJF / SRTF). ${old.id} keeps its remaining time and returns to queue ${qName(cq)}.`
+                : `${old.id} es interrumpido porque ${best.id} tiene menor tiempo restante (${best.remaining} < ${old.remaining}) en la misma cola (SJF expropiativo / SRTF). ${old.id} conserva su tiempo restante y vuelve a esperar en la cola ${qName(cq)}.`,
               { pid: old.id, queue: cq, cause: 'srtf' });
             old.state = 'interrupted';
             ready[cq].push(old);
@@ -585,20 +738,31 @@ export function simulate(input, config, interruptions = []) {
         dispatched = true;
         idleActive = false;
         sameAsBefore = lastRunPid === chosen.id;
-        queueReason = `La CPU selecciona la cola ${qName(q)} porque ${reasonForQueue(q)}.`;
+        queueReason = en
+          ? `CPU selects queue ${qName(q)} because ${reasonForQueue(q)}.`
+          : `La CPU selecciona la cola ${qName(q)} porque ${reasonForQueue(q)}.`;
         dispatchText = reasonInQueue(chosen, candidates, resumed);
         if (!sameAsBefore) {
           if (lastRunPid === null || lastQueue !== q) add('queue', queueReason, { queue: q });
           if (lastRunPid !== null) {
             ctx++; ctxFrom = lastRunPid;
-            add('context', `Cambio de contexto: la CPU pasa de ${lastRunPid} a ${chosen.id}.`, { from: lastRunPid, to: chosen.id });
+            add(
+              'context',
+              en ? `Context switch: CPU switches from ${lastRunPid} to ${chosen.id}.` : `Cambio de contexto: la CPU pasa de ${lastRunPid} a ${chosen.id}.`,
+              { from: lastRunPid, to: chosen.id }
+            );
           }
           add('dispatch', dispatchText, { pid: chosen.id, queue: q });
         }
         lastQueue = q;
       } else if (!idleActive) {
         idleActive = true;
-        add('idle', 'La CPU queda ociosa: no hay procesos listos en ninguna cola (los siguientes aún no han llegado).');
+        add(
+          'idle',
+          en
+            ? 'CPU is idle: no ready processes in any queue (upcoming processes have not arrived yet).'
+            : 'La CPU queda ociosa: no hay procesos listos en ninguna cola (los siguientes aún no han llegado).'
+        );
       }
     }
 
@@ -609,33 +773,64 @@ export function simulate(input, config, interruptions = []) {
       lines.push({ type: e.type, text: e.text });
     });
     if (dispatched && sameAsBefore) {
-      lines.push({ type: 'dispatch', text: `${queueReason.replace('La CPU selecciona', 'La CPU mantiene')} ${dispatchText}` });
+      const keptReason = en
+        ? queueReason.replace('CPU selects', 'CPU keeps')
+        : queueReason.replace('La CPU selecciona', 'La CPU mantiene');
+      lines.push({ type: 'dispatch', text: `${keptReason} ${dispatchText}` });
     }
     if (cpu && !dispatched) {
       const p = cpu.proc, a = algOf(p.queue);
       const pre = isQueuePreemptive(config, p.queue);
       let why = '';
-      if (a === 'FCFS' || (a === 'SJF' && !pre)) why = `${ALGORITHMS[a].short} es no apropiativo: un proceso que ya empezó no se interrumpe dentro de su cola.`;
-      else if (a === 'SRTF' || (a === 'SJF' && pre)) why = `ningún proceso listo de su cola tiene un tiempo restante menor que ${p.remaining}.`;
-      else if (a === 'RR' && !pre) why = 'Round Robin está en modo no expropiativo: ejecuta hasta completar su ráfaga.';
-      else why = `le quedan ${cpu.qLeft} unidades de quantum.`;
+      if (a === 'FCFS' || (a === 'SJF' && !pre)) {
+        why = en
+          ? `${ALGORITHMS[a].short} is non-preemptive: a running process is not interrupted within its queue.`
+          : `${ALGORITHMS[a].short} es no apropiativo: un proceso que ya empezó no se interrumpe dentro de su cola.`;
+      } else if (a === 'SRTF' || (a === 'SJF' && pre)) {
+        why = en
+          ? `no ready process in its queue has a remaining time shorter than ${p.remaining}.`
+          : `ningún proceso listo de su cola tiene un tiempo restante menor que ${p.remaining}.`;
+      } else if (a === 'RR' && !pre) {
+        why = en
+          ? 'Round Robin is in non-preemptive mode: it runs until its burst completes.'
+          : 'Round Robin está en modo no expropiativo: ejecuta hasta completar su ráfaga.';
+      } else {
+        why = en ? `${cpu.qLeft} quantum units remain.` : `le quedan ${cpu.qLeft} unidades de quantum.`;
+      }
 
       let sup;
       if (percentMode) sup = selKind === 'quota'
-        ? ` A la cola ${qName(p.queue)} le quedan ${quotaLeft[p.queue]} de ${quotaAlloc[p.queue]} unidades de cuota en este ciclo (incluida la actual).`
-        : ` La cola ${qName(p.queue)} ya agotó su cuota, pero las demás colas con procesos también: usa el tiempo sobrante.`;
-      else if (!mlqPreemptive && p.queue > 0) sup = ' MLQ está en modo no expropiativo: mantiene la CPU aunque lleguen colas superiores.';
-      else sup = p.queue === 0 ? '' : ' Las colas de mayor prioridad no tienen procesos listos.';
-      lines.push({ type: 'info', text: `${p.id} continúa ejecutándose en la cola ${qName(p.queue)}: ${why}${sup}` });
+        ? (en ? ` Queue ${qName(p.queue)} has ${quotaLeft[p.queue]} of ${quotaAlloc[p.queue]} quota units left in this cycle (including the current one).` : ` A la cola ${qName(p.queue)} le quedan ${quotaLeft[p.queue]} de ${quotaAlloc[p.queue]} unidades de cuota en este ciclo (incluida la actual).`)
+        : (en ? ` Queue ${qName(p.queue)} already exhausted its quota, as did all other queues with ready processes: it uses the spare time.` : ` La cola ${qName(p.queue)} ya agotó su cuota, pero las demás colas con procesos también: usa el tiempo sobrante.`);
+      else if (!mlqPreemptive && p.queue > 0) {
+        sup = en
+          ? ' MLQ is in non-preemptive mode: it keeps the CPU even if higher-priority queues arrive.'
+          : ' MLQ está en modo no expropiativo: mantiene la CPU aunque lleguen colas superiores.';
+      } else {
+        sup = p.queue === 0 ? '' : (en ? ' Higher-priority queues have no ready processes.' : ' Las colas de mayor prioridad no tienen procesos listos.');
+      }
+      lines.push({
+        type: 'info',
+        text: en
+          ? `${p.id} continues running in queue ${qName(p.queue)}: ${why}${sup}`
+          : `${p.id} continúa ejecutándose en la cola ${qName(p.queue)}: ${why}${sup}`
+      });
     }
     waitingLines().forEach((l) => lines.push({ type: 'wait', text: l }));
     if (activeInterrupt) {
       lines.push({
         type: 'interrupt',
-        text: `Interrupción externa ${activeInterrupt.label} en curso: la CPU atiende la rutina (restan ${activeInterrupt.remaining} de ${activeInterrupt.duration} u).`
+        text: en
+          ? `External interruption ${activeInterrupt.label} in progress: CPU handles the routine (${activeInterrupt.remaining} of ${activeInterrupt.duration} u left).`
+          : `Interrupción externa ${activeInterrupt.label} en curso: la CPU atiende la rutina (restan ${activeInterrupt.remaining} de ${activeInterrupt.duration} u).`
       });
     } else if (!cpu) {
-      lines.push({ type: 'idle', text: 'No hay ningún proceso listo; la CPU espera la llegada del siguiente proceso.' });
+      lines.push({
+        type: 'idle',
+        text: en
+          ? 'No ready processes; CPU is waiting for the next process to arrive.'
+          : 'No hay ningún proceso listo; la CPU espera la llegada del siguiente proceso.'
+      });
     }
 
     snapshots.push(makeSnapshot(t, ev, lines, top, { dispatched }));
@@ -658,7 +853,9 @@ export function simulate(input, config, interruptions = []) {
         carry.push({
           t: t + 1,
           type: 'interrupt_end',
-          text: `Finaliza la interrupción externa ${activeInterrupt.label}. La CPU queda disponible.`
+          text: en
+            ? `External interruption ${activeInterrupt.label} finished. CPU is available.`
+            : `Finaliza la interrupción externa ${activeInterrupt.label}. La CPU queda disponible.`
         });
         activeInterrupt = null;
       }
@@ -674,7 +871,15 @@ export function simulate(input, config, interruptions = []) {
       if (p.remaining === 0) {
         p.state = 'done';
         p.finish = t + 1;
-        carry.push({ t: t + 1, type: 'finish', text: `${p.id} finaliza su ejecución (cola ${qName(p.queue)}).`, pid: p.id, queue: p.queue });
+        carry.push({
+          t: t + 1,
+          type: 'finish',
+          text: en
+            ? `${p.id} finished execution (queue ${qName(p.queue)}).`
+            : `${p.id} finaliza su ejecución (cola ${qName(p.queue)}).`,
+          pid: p.id,
+          queue: p.queue
+        });
         cpu = null;
       } else if (algOf(p.queue) === 'RR' && isQueuePreemptive(config, p.queue) && cpu.qLeft === 0) {
         expired = { proc: p, q: p.queue };

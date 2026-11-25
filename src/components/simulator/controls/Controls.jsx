@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import SpeedControl from './SpeedControl.jsx';
+import { useLanguage } from '../../../i18n/LanguageContext.jsx';
 
 export default function Controls({
   status,
@@ -15,6 +16,9 @@ export default function Controls({
   onGoEnd,
   onReset
 }) {
+  const { lang } = useLanguage();
+  const en = lang === 'en';
+
   // Atajos de teclado: Espacio (pausar/continuar), Flecha der (siguiente), Flecha izq (anterior)
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -57,7 +61,7 @@ export default function Controls({
           disabled={status !== 'idle'}
           onClick={onStart}
         >
-          ▶ Iniciar simulación
+          {en ? '▶ Start simulation' : '▶ Iniciar simulación'}
         </button>
         <button
           className="btn btn-warn"
@@ -66,7 +70,7 @@ export default function Controls({
           disabled={status !== 'running'}
           onClick={onPause}
         >
-          ❚❚ Pausar
+          {en ? '❚❚ Pause' : '❚❚ Pausar'}
         </button>
         <button
           className="btn btn-outline-dark"
@@ -75,7 +79,7 @@ export default function Controls({
           disabled={status !== 'paused'}
           onClick={onResume}
         >
-          ▶ Continuar
+          {en ? '▶ Resume' : '▶ Continuar'}
         </button>
         <button
           className="btn btn-outline-dark"
@@ -84,7 +88,7 @@ export default function Controls({
           disabled={!(status === 'paused' || status === 'finished') || cursor <= 0}
           onClick={onStepBack}
         >
-          ◀ Paso anterior
+          {en ? '◀ Previous step' : '◀ Paso anterior'}
         </button>
         <button
           className="btn btn-outline-dark"
@@ -93,7 +97,7 @@ export default function Controls({
           disabled={status === 'running' || status === 'finished'}
           onClick={onStepNext}
         >
-          Siguiente paso ▶▮
+          {en ? 'Next step ▶▮' : 'Siguiente paso ▶▮'}
         </button>
         <button
           className="btn btn-outline-dark"
@@ -102,7 +106,7 @@ export default function Controls({
           disabled={status === 'finished'}
           onClick={onGoEnd}
         >
-          ⏭ Ir al final
+          {en ? '⏭ Go to end' : '⏭ Ir al final'}
         </button>
         <button
           className="btn btn-danger"
@@ -111,14 +115,14 @@ export default function Controls({
           disabled={status === 'idle'}
           onClick={onReset}
         >
-          ↺ Reiniciar
+          {en ? '↺ Reset' : '↺ Reiniciar'}
         </button>
       </div>
 
       <SpeedControl speed={speed} onSpeedChange={onSpeedChange} />
 
       <div className="clock" aria-live="polite">
-        Tiempo <strong id="clock">{currentSnapshot ? currentSnapshot.t : '—'}</strong>
+        {en ? 'Time' : 'Tiempo'} <strong id="clock">{currentSnapshot ? currentSnapshot.t : '—'}</strong>
       </div>
     </div>
   );

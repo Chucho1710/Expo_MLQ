@@ -53,9 +53,14 @@ kbd { font-family: var(--mono); font-size: .8em; background: var(--slate-100); b
 .topbar { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px clamp(16px, 3vw, 32px); background: var(--red-700); color: var(--white); box-shadow: 0 2px 10px rgba(74, 7, 18, .35); }
 .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; font-weight: 700; }
 .brand-mark { display: inline-grid; place-items: center; background: var(--white); color: var(--red-700); font-weight: 800; letter-spacing: .04em; border-radius: 7px; padding: 4px 8px; font-size: .95rem; }
-.topbar nav { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.topbar nav { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
 .topbar nav a { text-decoration: none; padding: 8px 12px; border-radius: 999px; font-size: .92rem; color: #f3d3d8; transition: background .2s, color .2s; }
 .topbar nav a:hover { background: rgba(255,255,255,.16); color: var(--white); }
+.topbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+.lang-switch { display: inline-flex; align-items: center; gap: 4px; background: rgba(0,0,0,.22); padding: 4px; border-radius: 999px; border: 1px solid rgba(255,255,255,.24); }
+.lang-btn { border: none; background: transparent; color: #f3d3d8; font-size: .78rem; font-weight: 800; letter-spacing: .04em; padding: 4px 12px; border-radius: 999px; cursor: pointer; transition: background .15s, color .15s; line-height: 1.2; }
+.lang-btn:hover { color: var(--white); background: rgba(255,255,255,.14); }
+.lang-btn.active { background: var(--white); color: var(--red-700); }
 @media (max-width: 720px) { .brand span:last-child { display: none; } .topbar nav a { padding: 4px 8px; font-size: .85rem; } }
 
 /* ---------- hero ---------- */

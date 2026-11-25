@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import ImportJsonModal from './ImportJsonModal.jsx';
+import { useLanguage } from '../../../i18n/LanguageContext.jsx';
 import {
   ALGORITHMS,
   MAX_QUEUES,
@@ -28,6 +29,8 @@ export default function GlobalActionsBar({
   onImport,
   toast
 }) {
+  const { lang } = useLanguage();
+  const en = lang === 'en';
   const [showGlobalAddProc, setShowGlobalAddProc] = useState(false);
   const [showAddQueue, setShowAddQueue] = useState(false);
   const [showAddInterrupt, setShowAddInterrupt] = useState(false);
@@ -63,29 +66,33 @@ export default function GlobalActionsBar({
     const qIdx = Number(pQueue);
 
     if (!/^[A-Za-z0-9_-]{1,8}$/.test(idRaw)) {
-      setPErr('ID: 1-8 letras, números o guion.');
+      setPErr(en ? 'ID: 1-8 letters, numbers, or hyphen.' : 'ID: 1-8 letras, números o guion.');
       return;
     }
     if (processes.some((p) => p.id.toLowerCase() === idRaw.toLowerCase())) {
-      setPErr(`Ya existe el proceso ${idRaw}.`);
+      setPErr(en ? `Process ${idRaw} already exists.` : `Ya existe el proceso ${idRaw}.`);
       return;
     }
     if (!Number.isInteger(arr) || arr < 0 || arr > 1000) {
-      setPErr('Llegada debe ser entero >= 0.');
+      setPErr(en ? 'Arrival must be an integer >= 0.' : 'Llegada debe ser entero >= 0.');
       return;
     }
     if (!Number.isInteger(bst) || bst < 1 || bst > 1000) {
-      setPErr('Ráfaga debe ser entero >= 1.');
+      setPErr(en ? 'Burst must be an integer >= 1.' : 'Ráfaga debe ser entero >= 1.');
       return;
     }
     if (processes.length >= 30) {
-      setPErr('Máximo 30 procesos.');
+      setPErr(en ? 'Maximum 30 processes.' : 'Máximo 30 procesos.');
       return;
     }
 
     setPErr('');
     onAddProcess({ id: idRaw, arrival: arr, burst: bst, queue: qIdx });
-    toast(`Proceso ${idRaw} agregado a la cola ${queueName(config, qIdx)}.`);
+    toast(
+      en
+        ? `Process ${idRaw} added to queue ${queueName(config, qIdx, lang)}.`
+        : `Proceso ${idRaw} agregado a la cola ${queueName(config, qIdx, lang)}.`
+    );
     setPId('');
     setShowGlobalAddProc(false);
   };
@@ -93,25 +100,25 @@ export default function GlobalActionsBar({
   const handleCreateQueue = (e) => {
     e.preventDefault();
     if (total >= MAX_QUEUES) {
-      setQErr(`Máximo ${MAX_QUEUES} colas permitidas.`);
+      setQErr(en ? `Maximum ${MAX_QUEUES} queues allowed.` : `Máximo ${MAX_QUEUES} colas permitidas.`);
       return;
     }
-    const name = qName.trim() || `Cola ${total + 1}`;
-    if (config.queues.some((_, i) => queueName(config, i).toLowerCase() === name.toLowerCase())) {
-      setQErr(`Ya existe una cola llamada "${name}".`);
+    const name = qName.trim() || (en ? `Queue ${total + 1}` : `Cola ${total + 1}`);
+    if (config.queues.some((_, i) => queueName(config, i, lang).toLowerCase() === name.toLowerCase())) {
+      setQErr(en ? `A queue named "${name}" already exists.` : `Ya existe una cola llamada "${name}".`);
       return;
     }
     const alg = ALGORITHMS[qAlg];
     const quantum = alg.usesQuantum ? Number(qQuantum) : 4;
     if (alg.usesQuantum && (!Number.isInteger(quantum) || quantum < 1 || quantum > 99)) {
-      setQErr('El quantum debe ser un entero entre 1 y 99.');
+      setQErr(en ? 'Quantum must be an integer between 1 and 99.' : 'El quantum debe ser un entero entre 1 y 99.');
       return;
     }
 
     setQErr('');
     onAddQueue({
       name,
-      description: `Cola de prioridad nivel ${total + 1}.`,
+      description: en ? `Priority level ${total + 1} queue.` : `Cola de prioridad nivel ${total + 1}.`,
       algorithm: qAlg,
       quantum,
       preemptive: alg.key === 'RR' || alg.key === 'SRTF'
@@ -126,10 +133,10 @@ export default function GlobalActionsBar({
 
   const handleImportSuccess = ({ processes: procs, config: cfg, interruptions: ints }) => {
     onImport(procs, cfg, ints);
-    const parts = [`${procs.length} proceso(s)`];
-    if (cfg) parts.push('configuración');
-    if (ints && ints.length) parts.push(`${ints.length} interrupción(es)`);
-    toast(`Importado: ${parts.join(', ')}.`);
+    const parts = [en ? `${procs.length} process(es)` : `${procs.length} proceso(s)`];
+    if (cfg) parts.push(en ? 'configuration' : 'configuración');
+    if (ints && ints.length) parts.push(en ? `${ints.length} interruption(s)` : `${ints.length} interrupción(es)`);
+    toast(en ? `Imported: ${parts.join(', ')}.` : `Importado: ${parts.join(', ')}.`);
   };
 
   const handleCreateInterrupt = (e) => {
@@ -145,14 +152,18 @@ export default function GlobalActionsBar({
       duration: durVal
     };
     const nextList = [...interruptions, candidate];
-    const errs = validateInterruptions(nextList);
+    const errs = validateInterruptions(nextList, lang);
     if (errs.length) {
       setIrqErr(errs[0]);
       return;
     }
     setIrqErr('');
     onInterruptionsChange(nextList.sort((a, b) => a.time - b.time));
-    toast(`Interrupción "${labelVal}" programada en t = ${timeVal} (${durVal} u).`);
+    toast(
+      en
+        ? `Interruption "${labelVal}" scheduled at t = ${timeVal} (${durVal} u).`
+        : `Interrupción "${labelVal}" programada en t = ${timeVal} (${durVal} u).`
+    );
     setIrqLabel('');
     setShowAddInterrupt(false);
   };
@@ -160,7 +171,7 @@ export default function GlobalActionsBar({
   const handleRemoveInterrupt = (id) => {
     const nextList = interruptions.filter((ir) => ir.id !== id);
     onInterruptionsChange(nextList);
-    toast('Interrupción eliminada.');
+    toast(en ? 'Interruption removed.' : 'Interrupción eliminada.');
   };
 
   return (
