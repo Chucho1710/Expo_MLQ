@@ -15,6 +15,7 @@ export default function GlobalActionsBar({
   minCycle,
   policyErrors,
   onPolicyChange,
+  onMlqPreemptiveChange,
   onCycleChange,
   onLoadScenario,
   onClearProcesses,
@@ -40,6 +41,7 @@ export default function GlobalActionsBar({
   const [qErr, setQErr] = useState('');
 
   const total = config.queues.length;
+  const isMlqPreemptive = config.preemptive !== false;
 
   const handleCreateProcess = (e) => {
     e.preventDefault();
@@ -99,7 +101,8 @@ export default function GlobalActionsBar({
       name,
       description: `Cola de prioridad nivel ${total + 1}.`,
       algorithm: qAlg,
-      quantum
+      quantum,
+      preemptive: alg.key === 'RR' || alg.key === 'SRTF'
     });
     setQName('');
     setShowAddQueue(false);
@@ -154,36 +157,66 @@ export default function GlobalActionsBar({
       {/* Selector de Política entre colas */}
       <div className="policy-selection-box">
         <div className="policy-opts" role="radiogroup" aria-label="Política de planificación entre colas">
-          <label className="policy-opt">
-            <input
-              type="radio"
-              name="policy"
-              value="priority"
-              checked={!isPercent}
-              onChange={() => onPolicyChange('priority')}
-            />
-            <span>
-              <b>Prioridad fija</b>
-              <small>
-                La CPU siempre atiende a la cola de mayor prioridad con trabajo listo. Si llega un proceso superior, interrumpe al actual.
-              </small>
-            </span>
-          </label>
-          <label className="policy-opt">
-            <input
-              type="radio"
-              name="policy"
-              value="percent"
-              checked={isPercent}
-              onChange={() => onPolicyChange('percent')}
-            />
-            <span>
-              <b>Porcentajes de CPU</b>
-              <small>
-                El tiempo se reparte en ciclos según los porcentajes asignados. Evita la inanición de colas bajas.
-              </small>
-            </span>
-          </label>
+          <div className={`policy-opt ${!isPercent ? 'is-active' : ''}`}>
+            <label className="policy-opt-label">
+              <input
+                type="radio"
+                name="policy"
+                value="priority"
+                checked={!isPercent}
+                onChange={() => onPolicyChange('priority')}
+              />
+              <span>
+                <b>Prioridad fija entre colas (MLQ)</b>
+                <small>
+                  El planificador atiende las colas en orden estricto de prioridad (Cola 1 &gt; Cola 2 &gt; ...).
+                </small>
+              </span>
+            </label>
+
+            {/* Selector de Expropiativo vs No Expropiativo para MLQ */}
+            {!isPercent && (
+              <div className="policy-sub-opts">
+                <span className="sub-opt-title">Modo entre colas:</span>
+                <label className={`sub-opt-btn ${isMlqPreemptive ? 'active' : ''}`}>
+                  <input
+                    type="radio"
+                    name="mlq-preempt-mode"
+                    checked={isMlqPreemptive}
+                    onChange={() => onMlqPreemptiveChange(true)}
+                  />
+                  <span>⚡ Expropiativo (Apropiativo)</span>
+                </label>
+                <label className={`sub-opt-btn ${!isMlqPreemptive ? 'active' : ''}`}>
+                  <input
+                    type="radio"
+                    name="mlq-preempt-mode"
+                    checked={!isMlqPreemptive}
+                    onChange={() => onMlqPreemptiveChange(false)}
+                  />
+                  <span>🛡️ No expropiativo</span>
+                </label>
+              </div>
+            )}
+          </div>
+
+          <div className={`policy-opt ${isPercent ? 'is-active' : ''}`}>
+            <label className="policy-opt-label">
+              <input
+                type="radio"
+                name="policy"
+                value="percent"
+                checked={isPercent}
+                onChange={() => onPolicyChange('percent')}
+              />
+              <span>
+                <b>Porcentajes de CPU</b>
+                <small>
+                  El tiempo se reparte en ciclos según los porcentajes asignados. Evita la inanición de colas bajas.
+                </small>
+              </span>
+            </label>
+          </div>
         </div>
 
         {isPercent && (

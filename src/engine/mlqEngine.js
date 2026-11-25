@@ -70,24 +70,72 @@ export function getProcessColors(processes, config) {
 }
 
 export const ALGORITHMS = {
-  FCFS: { key: 'FCFS', short: 'FCFS', label: 'FCFS (First Come, First Served)', modality: 'No apropiativo', usesQuantum: false,
-          note: 'Atiende por orden de llegada. Un proceso que empieza no se interrumpe dentro de su cola.' },
-  SJF:  { key: 'SJF',  short: 'SJF',  label: 'SJF (Shortest Job First)', modality: 'No apropiativo', usesQuantum: false,
-          note: 'Elige la ráfaga más corta entre los procesos listos. No interrumpe al que ya está ejecutando.' },
-  SRTF: { key: 'SRTF', short: 'SRTF', label: 'SRTF (Shortest Remaining Time First)', modality: 'Apropiativo', usesQuantum: false,
-          note: 'Siempre ejecuta el menor tiempo restante; un proceso más corto que llega puede interrumpir al actual.' },
-  RR:   { key: 'RR',   short: 'RR',   label: 'Round Robin (RR)', modality: 'Apropiativo (por quantum)', usesQuantum: true,
-          note: 'Cada proceso recibe un quantum; al agotarlo cede la CPU y vuelve al final de su cola.' }
+  FCFS: {
+    key: 'FCFS',
+    short: 'FCFS',
+    label: 'FCFS (First Come, First Served)',
+    modality: 'No expropiativo',
+    usesQuantum: false,
+    canTogglePreemption: false,
+    note: 'Atiende por orden de llegada. Un proceso que empieza no se interrumpe dentro de su cola.'
+  },
+  SJF: {
+    key: 'SJF',
+    short: 'SJF',
+    label: 'SJF (Shortest Job First)',
+    modality: 'No expropiativo',
+    usesQuantum: false,
+    canTogglePreemption: true,
+    note: 'Elige la ráfaga más corta. En modo no expropiativo no interrumpe al proceso en CPU; en modo expropiativo (SRTF) lo desaloja si llega uno más corto.'
+  },
+  SRTF: {
+    key: 'SRTF',
+    short: 'SRTF',
+    label: 'SRTF (Shortest Remaining Time First)',
+    modality: 'Expropiativo',
+    usesQuantum: false,
+    canTogglePreemption: true,
+    note: 'Siempre ejecuta el menor tiempo restante; un proceso más corto que llega desaloja al actual.'
+  },
+  RR: {
+    key: 'RR',
+    short: 'RR',
+    label: 'Round Robin (RR)',
+    modality: 'Expropiativo (por quantum)',
+    usesQuantum: true,
+    canTogglePreemption: true,
+    note: 'Cada proceso recibe un quantum. En modo expropiativo (estándar), al agotarlo cede la CPU; en modo no expropiativo, ejecuta hasta terminar su ráfaga.'
+  }
 };
 
+/** Determina si una cola tiene habilitada la expropiación interna */
+export function isQueuePreemptive(config, qIdx) {
+  const q = config && config.queues && config.queues[qIdx];
+  if (!q) return false;
+  if (q.preemptive !== undefined) return Boolean(q.preemptive);
+  if (q.algorithm === 'SRTF' || q.algorithm === 'RR') return true;
+  return false;
+}
+
+export function getQueueModalityLabel(config, qIdx) {
+  const q = config && config.queues && config.queues[qIdx];
+  if (!q) return 'No expropiativo';
+  const pre = isQueuePreemptive(config, qIdx);
+  if (q.algorithm === 'FCFS') return 'No expropiativo';
+  if (q.algorithm === 'RR') return pre ? `Expropiativo (q = ${q.quantum})` : 'No expropiativo (sin quantum)';
+  if (q.algorithm === 'SJF' || q.algorithm === 'SRTF') return pre ? 'Expropiativo (SRTF)' : 'No expropiativo (SJF)';
+  return pre ? 'Expropiativo' : 'No expropiativo';
+}
+
 export const DEFAULT_CONFIG = () => ({
-  policy: 'priority',          // 'priority' (prioridad fija apropiativa) | 'percent' (porcentajes de CPU)
+  policy: 'priority',          // 'priority' (prioridad fija) | 'percent' (porcentajes de CPU)
+  preemptive: true,            // true = MLQ expropiativo entre colas | false = MLQ no expropiativo
   percent: [50, 30, 20],       // % de CPU por cola (solo con policy = 'percent'; debe sumar 100)
   cycle: 10,                   // duración del ciclo de reparto en unidades de tiempo
   queues: [
-    { name: 'Sistema',     description: QUEUES[0].description, algorithm: 'RR',   quantum: 2 },
-    { name: 'Interactiva', description: QUEUES[1].description, algorithm: 'RR',   quantum: 4 },
-    { name: 'Batch',       description: QUEUES[2].description, algorithm: 'FCFS', quantum: 4 }
+    { name: 'Sistema',     description: QUEUES[0].description, algorithm: 'RR',   quantum: 2, preemptive: true },
+    { name: 'Interactiva', description: QUEUES[1].description, algorithm: 'RR',   quantum: 4, preemptive: true },
+    { name: 'Batch',       description: QUEUES[2].description, algorithm: 'FCFS', quantum: 4, preemptive: false }
   ]
 });
 
@@ -117,14 +165,15 @@ export const SCENARIOS = {
     name: 'Escenario de 5 colas',
     config: {
       policy: 'priority',
+      preemptive: true,
       percent: [30, 25, 20, 15, 10],
       cycle: 10,
       queues: [
-        { name: 'Sistema',       description: QUEUES[0].description,                         algorithm: 'RR',   quantum: 2 },
-        { name: 'Interactiva',   description: QUEUES[1].description,                         algorithm: 'RR',   quantum: 4 },
-        { name: 'Batch',         description: QUEUES[2].description,                         algorithm: 'FCFS', quantum: 4 },
-        { name: 'Segundo plano', description: 'Tareas periódicas y respaldos en segundo plano.', algorithm: 'SJF',  quantum: 3 },
-        { name: 'Mantenimiento', description: 'Procesos diferidos de mínima prioridad.',     algorithm: 'FCFS', quantum: 4 }
+        { name: 'Sistema',       description: QUEUES[0].description,                         algorithm: 'RR',   quantum: 2, preemptive: true },
+        { name: 'Interactiva',   description: QUEUES[1].description,                         algorithm: 'RR',   quantum: 4, preemptive: true },
+        { name: 'Batch',         description: QUEUES[2].description,                         algorithm: 'FCFS', quantum: 4, preemptive: false },
+        { name: 'Segundo plano', description: 'Tareas periódicas y respaldos en segundo plano.', algorithm: 'SJF',  quantum: 3, preemptive: false },
+        { name: 'Mantenimiento', description: 'Procesos diferidos de mínima prioridad.',     algorithm: 'FCFS', quantum: 4, preemptive: false }
       ]
     },
     processes: [
@@ -245,6 +294,8 @@ export function simulate(input, config) {
   const queueIndices = Array.from({ length: numQueues }, (_, i) => i);
   const qName = (q) => queueName(config, q);
 
+  const mlqPreemptive = config.preemptive !== false; // true por defecto
+
   const procs = input.map((p) => ({
     id: p.id, arrival: p.arrival, burst: p.burst, queue: p.queue,
     remaining: p.burst, state: 'new', firstStart: null, finish: null
@@ -276,7 +327,13 @@ export function simulate(input, config) {
   function selectQueue() {
     const cand = queueIndices.filter((q) => ready[q].length > 0 || (cpu && cpu.proc.queue === q));
     if (!cand.length) return { q: null, kind: null };
-    if (!percentMode) return { q: cand[0], kind: 'priority' };
+    if (!percentMode) {
+      if (!mlqPreemptive && cpu) {
+        // En MLQ No Expropiativo, el proceso actual retiene la CPU hasta terminar
+        return { q: cpu.proc.queue, kind: 'priority' };
+      }
+      return { q: cand[0], kind: 'priority' };
+    }
     const withQuota = cand.filter((q) => quotaLeft[q] > 0);
     if (withQuota.length) return { q: withQuota[0], kind: 'quota' };
     return { q: cand[0], kind: 'borrow' };
@@ -307,13 +364,17 @@ export function simulate(input, config) {
       return `${head} porque llegó primero (llegada = ${chosen.arrival})${tie}.`;
     }
     if (alg === 'SJF' || alg === 'SRTF') {
-      const what = alg === 'SJF' ? 'la menor ráfaga' : 'el menor tiempo restante';
+      const what = (alg === 'SJF' && !isQueuePreemptive(config, q)) ? 'la menor ráfaga' : 'el menor tiempo restante';
       const note = resumed ? ' (había sido interrumpido y conserva su tiempo restante)' : '';
       if (only) return `${head} porque es el único proceso listo de la cola${note}.`;
       const tie = next && next.remaining === chosen.remaining ? '; hay empate, así que se elige el que llegó primero o, si persiste, el de menor identificador' : '';
       return `${head} porque tiene ${what} entre los procesos listos (${chosen.remaining} unidades)${tie}${note}.`;
     }
+    const isPre = isQueuePreemptive(config, q);
     const note = resumed ? ' Había sido interrumpido: conserva su tiempo restante pero recibe un quantum nuevo.' : '';
+    if (!isPre) {
+      return `${head} en modo Round Robin no expropiativo: ejecutará hasta completar su ráfaga.${note}`;
+    }
     if (only) return `${head} porque es el único proceso listo de la cola; recibe un quantum de ${quantumOf(q)} unidades.${note}`;
     return `${head} porque está al frente de la cola circular; recibe un quantum de ${quantumOf(q)} unidades.${note}`;
   }
@@ -326,7 +387,9 @@ export function simulate(input, config) {
       const list = orderedReady(ready[q], algOf(q));
       if (!list.length) continue;
       const ids = list.map((p) => p.id).join(', ');
-      if (percentMode && q !== cq) {
+      if (!percentMode && q < cq && !mlqPreemptive) {
+        lines.push(`Esperan en la cola ${qName(q)}: ${ids}. Tienen mayor prioridad que la cola ${qName(cq)}, pero MLQ está en modo NO EXPROPIATIVO, por lo que esperan a que ${cpu.proc.id} termine.`);
+      } else if (percentMode && q !== cq) {
         const why = quotaLeft[q] <= 0
           ? `la cola ${qName(q)} ya consumió su cuota (${quotaAlloc[q]} unidades) de este ciclo`
           : `ahora le corresponde a la cola ${qName(cq)} y la cola ${qName(q)} sigue después, por orden de prioridad dentro del ciclo`;
@@ -334,11 +397,12 @@ export function simulate(input, config) {
       } else if (q > cq) {
         lines.push(`Esperan en la cola ${qName(q)}: ${ids}. La cola ${qName(cq)} tiene mayor prioridad y la CPU está ocupada por ${cpu.proc.id}.`);
       } else if (q === cq) {
+        const pre = isQueuePreemptive(config, q);
         const why = {
           FCFS: 'FCFS atiende por orden de llegada y no interrumpe al proceso que ya está ejecutando.',
-          SJF: 'SJF no interrumpe al proceso en ejecución, aunque haya uno más corto esperando.',
+          SJF: pre ? 'ninguno tiene un tiempo restante estrictamente menor que el del proceso en ejecución (SRTF).' : 'SJF en modo no expropiativo no interrumpe al proceso en ejecución.',
           SRTF: 'ninguno tiene un tiempo restante estrictamente menor que el del proceso en ejecución.',
-          RR: 'deben esperar su turno en la cola circular hasta que se agote el quantum.'
+          RR: pre ? 'deben esperar su turno en la cola circular hasta que se agote el quantum.' : 'Round Robin en modo no expropiativo permite al proceso actual ejecutar hasta terminar.'
         }[algOf(q)];
         lines.push(`Esperan en la cola ${qName(q)}: ${ids}. ${cpu.proc.id} ya tiene la CPU; ${why}`);
       }
@@ -416,17 +480,21 @@ export function simulate(input, config) {
         ready[cq].unshift(old); // vuelve al frente de su cola
         preemptions++;
         cpu = null;
-      } else if (algOf(cq) === 'SRTF') {
-        const best = orderedReady(ready[cq], 'SRTF')[0];
-        if (best && best.remaining < old.remaining) {
-          add('preempt',
-            `${old.id} es interrumpido porque ${best.id} tiene menor tiempo restante (${best.remaining} < ${old.remaining}) en la misma cola (SRTF). ` +
-            `${old.id} conserva su tiempo restante y vuelve a esperar en la cola ${qName(cq)}.`,
-            { pid: old.id, queue: cq, cause: 'srtf' });
-          old.state = 'interrupted';
-          ready[cq].push(old);
-          preemptions++;
-          cpu = null;
+      } else {
+        // Comprobación de expropiación dentro de la misma cola (p.ej. SRTF o SJF expropiativo)
+        const isPreemptiveInside = algOf(cq) === 'SRTF' || (algOf(cq) === 'SJF' && isQueuePreemptive(config, cq));
+        if (isPreemptiveInside) {
+          const best = orderedReady(ready[cq], 'SRTF')[0];
+          if (best && best.remaining < old.remaining) {
+            add('preempt',
+              `${old.id} es interrumpido porque ${best.id} tiene menor tiempo restante (${best.remaining} < ${old.remaining}) en la misma cola (SJF expropiativo / SRTF). ` +
+              `${old.id} conserva su tiempo restante y vuelve a esperar en la cola ${qName(cq)}.`,
+              { pid: old.id, queue: cq, cause: 'srtf' });
+            old.state = 'interrupted';
+            ready[cq].push(old);
+            preemptions++;
+            cpu = null;
+          }
         }
       }
     }
@@ -442,7 +510,8 @@ export function simulate(input, config) {
         const resumed = chosen.state === 'interrupted';
         chosen.state = 'running';
         if (chosen.firstStart === null) chosen.firstStart = t;
-        cpu = { proc: chosen, qLeft: algOf(q) === 'RR' ? quantumOf(q) : null };
+        const usesQ = algOf(q) === 'RR' && isQueuePreemptive(config, q);
+        cpu = { proc: chosen, qLeft: usesQ ? quantumOf(q) : null };
         dispatched = true;
         idleActive = false;
         sameAsBefore = lastRunPid === chosen.id;
@@ -474,14 +543,18 @@ export function simulate(input, config) {
     }
     if (cpu && !dispatched) {
       const p = cpu.proc, a = algOf(p.queue);
+      const pre = isQueuePreemptive(config, p.queue);
       let why = '';
-      if (a === 'FCFS' || a === 'SJF') why = `${ALGORITHMS[a].short} es no apropiativo: un proceso que ya empezó no se interrumpe dentro de su cola.`;
-      else if (a === 'SRTF') why = `ningún proceso listo de su cola tiene un tiempo restante menor que ${p.remaining}.`;
+      if (a === 'FCFS' || (a === 'SJF' && !pre)) why = `${ALGORITHMS[a].short} es no apropiativo: un proceso que ya empezó no se interrumpe dentro de su cola.`;
+      else if (a === 'SRTF' || (a === 'SJF' && pre)) why = `ningún proceso listo de su cola tiene un tiempo restante menor que ${p.remaining}.`;
+      else if (a === 'RR' && !pre) why = 'Round Robin está en modo no expropiativo: ejecuta hasta completar su ráfaga.';
       else why = `le quedan ${cpu.qLeft} unidades de quantum.`;
+
       let sup;
       if (percentMode) sup = selKind === 'quota'
         ? ` A la cola ${qName(p.queue)} le quedan ${quotaLeft[p.queue]} de ${quotaAlloc[p.queue]} unidades de cuota en este ciclo (incluida la actual).`
         : ` La cola ${qName(p.queue)} ya agotó su cuota, pero las demás colas con procesos también: usa el tiempo sobrante.`;
+      else if (!mlqPreemptive && p.queue > 0) sup = ' MLQ está en modo no expropiativo: mantiene la CPU aunque lleguen colas superiores.';
       else sup = p.queue === 0 ? '' : ' Las colas de mayor prioridad no tienen procesos listos.';
       lines.push({ type: 'info', text: `${p.id} continúa ejecutándose en la cola ${qName(p.queue)}: ${why}${sup}` });
     }
@@ -506,7 +579,7 @@ export function simulate(input, config) {
         p.finish = t + 1;
         carry.push({ t: t + 1, type: 'finish', text: `${p.id} finaliza su ejecución (cola ${qName(p.queue)}).`, pid: p.id, queue: p.queue });
         cpu = null;
-      } else if (algOf(p.queue) === 'RR' && cpu.qLeft === 0) {
+      } else if (algOf(p.queue) === 'RR' && isQueuePreemptive(config, p.queue) && cpu.qLeft === 0) {
         expired = { proc: p, q: p.queue };
         cpu = null;
       }
@@ -528,7 +601,8 @@ export function simulate(input, config) {
       cpu: cpu ? {
         pid: cpu.proc.id, queue: cpu.proc.queue, algorithm: algOf(cpu.proc.queue),
         burst: cpu.proc.burst, executed: cpu.proc.burst - cpu.proc.remaining, remaining: cpu.proc.remaining,
-        quantum: algOf(cpu.proc.queue) === 'RR' ? quantumOf(cpu.proc.queue) : null, qLeft: cpu.qLeft
+        quantum: (algOf(cpu.proc.queue) === 'RR' && isQueuePreemptive(config, cpu.proc.queue)) ? quantumOf(cpu.proc.queue) : null,
+        qLeft: cpu.qLeft
       } : null,
       procs: procs.map((p) => ({
         id: p.id, queue: p.queue, arrival: p.arrival, burst: p.burst,
@@ -577,7 +651,7 @@ const defaultExport = {
   QUEUES, QUEUE_PALETTE, MAX_QUEUES, ALGORITHMS, SCENARIOS, DEFAULT_CONFIG,
   simulate, computeMetrics, validateInput, validateConfig, allocateQuotas,
   naturalCompare, orderedReady, queueName, queueDescription, queuePriorityLabel,
-  queuePalette, luminance, mixHex, getProcessColors
+  queuePalette, luminance, mixHex, getProcessColors, isQueuePreemptive, getQueueModalityLabel
 };
 
 export default defaultExport;

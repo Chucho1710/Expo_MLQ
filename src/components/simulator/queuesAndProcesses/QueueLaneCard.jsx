@@ -6,7 +6,9 @@ import {
   queueName,
   queueDescription,
   queuePriorityLabel,
-  queuePalette
+  queuePalette,
+  isQueuePreemptive,
+  getQueueModalityLabel
 } from '../../../engine/mlqEngine.js';
 
 export default function QueueLaneCard({
@@ -21,6 +23,7 @@ export default function QueueLaneCard({
   processColors,
   onNameChange,
   onAlgChange,
+  onQueuePreemptiveChange,
   onQuantumChange,
   onPctChange,
   onMove,
@@ -35,6 +38,8 @@ export default function QueueLaneCard({
   const desc = queueDescription(config, index);
   const pal = queuePalette(index);
   const alg = ALGORITHMS[cfg.algorithm] || ALGORITHMS.FCFS;
+  const isPreemptive = isQueuePreemptive(config, index);
+  const modalityLabel = getQueueModalityLabel(config, index);
 
   // Filtrar solo los procesos de esta cola
   const procsInQueue = processes.filter((p) => p.queue === index);
@@ -118,6 +123,41 @@ export default function QueueLaneCard({
           </select>
         </label>
 
+        {/* Toggle Expropiativo / No expropiativo para el algoritmo de la cola */}
+        {alg.canTogglePreemption && (
+          <div className="qfield">
+            <span style={{ fontSize: '.78rem', color: 'var(--navy-700)' }}>
+              Comportamiento del algoritmo
+            </span>
+            <div className="preempt-mode-toggle">
+              <button
+                type="button"
+                className={`btn btn-tiny ${isPreemptive ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => onQueuePreemptiveChange(index, true)}
+                title={
+                  cfg.algorithm === 'RR'
+                    ? 'Round Robin expropiativo: al agotar el quantum cede la CPU'
+                    : 'SRTF: expropia si llega un proceso más corto'
+                }
+              >
+                ⚡ Expropiativo
+              </button>
+              <button
+                type="button"
+                className={`btn btn-tiny ${!isPreemptive ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => onQueuePreemptiveChange(index, false)}
+                title={
+                  cfg.algorithm === 'RR'
+                    ? 'Round Robin no expropiativo: ejecuta hasta terminar su ráfaga'
+                    : 'SJF no expropiativo: no interrumpe al proceso en CPU'
+                }
+              >
+                🛡️ No expropiativo
+              </button>
+            </div>
+          </div>
+        )}
+
         {isPercent && (
           <label className="qfield qpct">
             % de CPU
@@ -137,9 +177,9 @@ export default function QueueLaneCard({
           </label>
         )}
 
-        {alg.usesQuantum && (
+        {alg.usesQuantum && isPreemptive && (
           <label className="qfield">
-            Quantum (u)
+            Quantum (u de tiempo)
             <input
               type="number"
               min="1"
@@ -154,8 +194,8 @@ export default function QueueLaneCard({
 
       <div className="qmeta">
         <span className="lane-tag">Modalidad:</span>
-        <span className={`mod-badge ${alg.modality.startsWith('Apropiativo') ? 'pre' : ''}`}>
-          {alg.modality}
+        <span className={`mod-badge ${isPreemptive ? 'pre' : ''}`}>
+          {modalityLabel}
         </span>
       </div>
 

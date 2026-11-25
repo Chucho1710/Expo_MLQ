@@ -103,6 +103,17 @@ export default function QueuesAndProcessesSection({
     onChangeConfig({ ...config, queues: nextQueues });
   };
 
+  const handleQueuePreemptiveChange = (idx, value) => {
+    const nextQueues = config.queues.map((q, i) =>
+      i === idx ? { ...q, preemptive: value } : q
+    );
+    onChangeConfig({ ...config, queues: nextQueues });
+  };
+
+  const handleMlqPreemptiveChange = (value) => {
+    onChangeConfig({ ...config, preemptive: value });
+  };
+
   const handleQueueQuantumChange = (idx, value) => {
     const v = Number(value);
     if (!Number.isInteger(v) || v < 1) {
@@ -211,6 +222,7 @@ export default function QueuesAndProcessesSection({
         minCycle={minCycle}
         policyErrors={policyErrors}
         onPolicyChange={handlePolicyChange}
+        onMlqPreemptiveChange={handleMlqPreemptiveChange}
         onCycleChange={handleCycleChange}
         onLoadScenario={onLoadScenario}
         onClearProcesses={onClearProcesses}
@@ -236,6 +248,7 @@ export default function QueuesAndProcessesSection({
             processColors={processColors}
             onNameChange={handleQueueNameChange}
             onAlgChange={handleQueueAlgChange}
+            onQueuePreemptiveChange={handleQueuePreemptiveChange}
             onQuantumChange={handleQueueQuantumChange}
             onPctChange={handleQueuePctChange}
             onMove={moveQueue}
