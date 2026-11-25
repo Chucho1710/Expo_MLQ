@@ -18,12 +18,46 @@
      1. CONSTANTES, ALGORITMOS Y ESCENARIOS
      =================================================================== */
 
-  /** Las tres colas. El índice (id) es también su prioridad: 0 es la más alta. Fijas. */
+  /** Las tres colas básicas por defecto. El índice (id) es su prioridad: 0 es la más alta. */
   const QUEUES = [
     { id: 0, name: 'Sistema',     priority: 'ALTA',  level: 1, description: 'Procesos esenciales del sistema operativo.' },
     { id: 1, name: 'Interactiva', priority: 'MEDIA', level: 2, description: 'Aplicaciones con las que interactúa el usuario.' },
     { id: 2, name: 'Batch',       priority: 'BAJA',  level: 3, description: 'Procesos por lotes y tareas en segundo plano.' }
   ];
+
+  const QUEUE_PALETTE = [
+    { base: '#7a0c1e', soft: '#fcf4f5', shades: ['#7a0c1e', '#9a1b30', '#5e0916', '#b33246', '#8c1427', '#a8263b'] },
+    { base: '#1e293b', soft: '#eef1f6', shades: ['#1e293b', '#334155', '#0f172a', '#475569', '#27354d', '#3b4a63'] },
+    { base: '#6b7280', soft: '#f1f3f5', shades: ['#6b7280', '#9ca3af', '#4b5563', '#7c8591', '#a3aab5', '#5f6672'] },
+    { base: '#0f766e', soft: '#effaf8', shades: ['#0f766e', '#0d9488', '#115e59', '#14b8a6', '#134e4a', '#2dd4bf'] },
+    { base: '#b45309', soft: '#fef6eb', shades: ['#b45309', '#d97706', '#92400e', '#f59e0b', '#78350f', '#c26d10'] },
+    { base: '#4338ca', soft: '#eef0fc', shades: ['#4338ca', '#4f46e5', '#3730a3', '#6366f1', '#312e81', '#5b52e8'] },
+    { base: '#7e22ce', soft: '#f7f0fd', shades: ['#7e22ce', '#9333ea', '#6b21a8', '#a855f7', '#581c87', '#8b35db'] },
+    { base: '#15803d', soft: '#edf9f1', shades: ['#15803d', '#16a34a', '#166534', '#22c55e', '#14532d', '#1e9449'] },
+    { base: '#0369a1', soft: '#edf7fc', shades: ['#0369a1', '#0284c7', '#075985', '#0ea5e9', '#0c4a6e', '#1d7fb8'] },
+    { base: '#9a3412', soft: '#fcf1ed', shades: ['#9a3412', '#c2410c', '#7c2d12', '#ea580c', '#6c2710', '#d9531e'] }
+  ];
+  const MAX_QUEUES = QUEUE_PALETTE.length;
+
+  function queueName(config, idx) {
+    const q = config && config.queues && config.queues[idx];
+    if (q && typeof q.name === 'string' && q.name.trim()) return q.name.trim();
+    return QUEUES[idx] ? QUEUES[idx].name : `Cola ${idx + 1}`;
+  }
+  function queueDescription(config, idx) {
+    const q = config && config.queues && config.queues[idx];
+    if (q && typeof q.description === 'string' && q.description.trim()) return q.description.trim();
+    return QUEUES[idx] ? QUEUES[idx].description : `Cola personalizada de prioridad nivel ${idx + 1}.`;
+  }
+  function queuePriorityLabel(idx, total) {
+    if (total === 3 && QUEUES[idx]) return QUEUES[idx].priority;
+    if (idx === 0) return total === 1 ? 'ÚNICA' : 'Niv. 1 · ALTA';
+    if (idx === total - 1) return `Niv. ${total} · BAJA`;
+    return `Niv. ${idx + 1}`;
+  }
+  function queuePalette(idx) {
+    return QUEUE_PALETTE[idx % QUEUE_PALETTE.length];
+  }
 
   const ALGORITHMS = {
     FCFS: { key: 'FCFS', short: 'FCFS', label: 'FCFS (First Come, First Served)', modality: 'No apropiativo', usesQuantum: false,
@@ -41,9 +75,9 @@
     percent: [50, 30, 20],       // % de CPU por cola (solo con policy = 'percent'; debe sumar 100)
     cycle: 10,                   // duración del ciclo de reparto en unidades de tiempo
     queues: [
-      { algorithm: 'RR',   quantum: 2 },
-      { algorithm: 'RR',   quantum: 4 },
-      { algorithm: 'FCFS', quantum: 4 }
+      { name: 'Sistema',     description: QUEUES[0].description, algorithm: 'RR',   quantum: 2 },
+      { name: 'Interactiva', description: QUEUES[1].description, algorithm: 'RR',   quantum: 4 },
+      { name: 'Batch',       description: QUEUES[2].description, algorithm: 'FCFS', quantum: 4 }
     ]
   });
 
@@ -67,6 +101,30 @@
         { id: 'P3', arrival: 3, burst: 3, queue: 0 },
         { id: 'P4', arrival: 5, burst: 2, queue: 1 },
         { id: 'P5', arrival: 7, burst: 3, queue: 2 }
+      ]
+    },
+    multicola: {
+      name: 'Escenario de 5 colas',
+      config: {
+        policy: 'priority',
+        percent: [30, 25, 20, 15, 10],
+        cycle: 10,
+        queues: [
+          { name: 'Sistema',       description: QUEUES[0].description,                         algorithm: 'RR',   quantum: 2 },
+          { name: 'Interactiva',   description: QUEUES[1].description,                         algorithm: 'RR',   quantum: 4 },
+          { name: 'Batch',         description: QUEUES[2].description,                         algorithm: 'FCFS', quantum: 4 },
+          { name: 'Segundo plano', description: 'Tareas periódicas y respaldos en segundo plano.', algorithm: 'SJF',  quantum: 3 },
+          { name: 'Mantenimiento', description: 'Procesos diferidos de mínima prioridad.',     algorithm: 'FCFS', quantum: 4 }
+        ]
+      },
+      processes: [
+        { id: 'P1', arrival: 0, burst: 4, queue: 4 },
+        { id: 'P2', arrival: 1, burst: 3, queue: 2 },
+        { id: 'P3', arrival: 2, burst: 3, queue: 0 },
+        { id: 'P4', arrival: 4, burst: 5, queue: 1 },
+        { id: 'P5', arrival: 6, burst: 3, queue: 3 },
+        { id: 'P6', arrival: 8, burst: 1, queue: 3 },
+        { id: 'P7', arrival: 7, burst: 2, queue: 0 }
       ]
     }
   };
@@ -120,42 +178,50 @@
   }
 
   /**
-   * Reparte las `cycle` unidades de un ciclo entre las tres colas según sus porcentajes,
+   * Reparte las `cycle` unidades de un ciclo entre las N colas según sus porcentajes,
    * con el método del mayor resto (la suma es siempre exactamente `cycle`).
    * Desempate de restos iguales: la cola de mayor prioridad.
    */
   function allocateQuotas(percent, cycle) {
+    const n = percent.length;
     const quota = percent.map((p) => Math.floor((p * cycle) / 100));
     const rest = percent.map((p) => (p * cycle) % 100);
     let left = cycle - quota.reduce((a, b) => a + b, 0);
-    const order = [0, 1, 2].sort((a, b) => rest[b] - rest[a] || a - b);
-    for (let i = 0; left > 0; i++, left--) quota[order[i % 3]]++;
+    const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => rest[b] - rest[a] || a - b);
+    for (let i = 0; left > 0; i++, left--) quota[order[i % n]]++;
     return quota;
   }
 
   /** Errores de la configuración de colas y de la política entre colas (lista vacía = válida). */
   function validateConfig(config) {
     const errors = [];
-    if (!config || !Array.isArray(config.queues) || config.queues.length !== 3) {
-      errors.push('La configuración debe tener tres colas.');
+    if (!config || !Array.isArray(config.queues) || config.queues.length < 1 || config.queues.length > MAX_QUEUES) {
+      errors.push(`La configuración debe tener entre 1 y ${MAX_QUEUES} colas.`);
       return errors;
     }
+    const n = config.queues.length;
     config.queues.forEach((c, i) => {
-      if (!ALGORITHMS[c.algorithm]) errors.push(`Cola ${QUEUES[i].name}: algoritmo inválido.`);
-      if (c.algorithm === 'RR' && (!Number.isInteger(c.quantum) || c.quantum < 1)) errors.push(`Cola ${QUEUES[i].name}: el quantum debe ser un entero ≥ 1.`);
+      const name = queueName(config, i);
+      if (!c || !ALGORITHMS[c.algorithm]) errors.push(`Cola ${name}: algoritmo inválido.`);
+      if (c && c.algorithm === 'RR' && (!Number.isInteger(c.quantum) || c.quantum < 1)) errors.push(`Cola ${name}: el quantum debe ser un entero ≥ 1.`);
     });
     if (config.policy !== undefined && config.policy !== 'priority' && config.policy !== 'percent') errors.push('Política entre colas inválida.');
     if (config.policy === 'percent') {
       const pc = config.percent;
-      if (!Array.isArray(pc) || pc.length !== 3 || pc.some((v) => !Number.isInteger(v) || v < 1 || v > 98)) {
-        errors.push('Cada porcentaje de CPU debe ser un entero entre 1 y 98.');
-      } else if (pc[0] + pc[1] + pc[2] !== 100) {
-        errors.push(`Los porcentajes deben sumar 100 % (ahora suman ${pc[0] + pc[1] + pc[2]} %).`);
-      } else if (!Number.isInteger(config.cycle) || config.cycle < 3 || config.cycle > 100) {
-        errors.push('El ciclo debe ser un entero entre 3 y 100 unidades.');
+      const minCycle = Math.max(3, n);
+      const maxPct = n === 1 ? 100 : 100 - (n - 1);
+      if (!Array.isArray(pc) || pc.length !== n || pc.some((v) => !Number.isInteger(v) || v < 1 || v > maxPct)) {
+        errors.push(`Cada porcentaje de CPU debe ser un entero entre 1 y ${maxPct}.`);
       } else {
-        const quota = allocateQuotas(pc, config.cycle);
-        quota.forEach((v, i) => { if (v < 1) errors.push(`La cola ${QUEUES[i].name} recibiría 0 unidades por ciclo: aumenta el ciclo o su porcentaje.`); });
+        const sum = pc.reduce((a, b) => a + b, 0);
+        if (sum !== 100) {
+          errors.push(`Los porcentajes deben sumar 100 % (ahora suman ${sum} %).`);
+        } else if (!Number.isInteger(config.cycle) || config.cycle < minCycle || config.cycle > 100) {
+          errors.push(`El ciclo debe ser un entero entre ${minCycle} y 100 unidades.`);
+        } else {
+          const quota = allocateQuotas(pc, config.cycle);
+          quota.forEach((v, i) => { if (v < 1) errors.push(`La cola ${queueName(config, i)} recibiría 0 unidades por ciclo: aumenta el ciclo o su porcentaje.`); });
+        }
       }
     }
     return errors;
@@ -164,6 +230,8 @@
   function validateInput(processes, config) {
     const errors = [];
     if (!Array.isArray(processes) || processes.length === 0) errors.push('Agrega al menos un proceso.');
+    const cfgErrors = validateConfig(config);
+    const numQueues = config && Array.isArray(config.queues) ? config.queues.length : 0;
     const seen = new Set();
     (processes || []).forEach((p) => {
       if (!/^[A-Za-z0-9_-]{1,8}$/.test(String(p.id))) errors.push(`Identificador inválido: "${p.id}".`);
@@ -171,9 +239,9 @@
       seen.add(p.id);
       if (!Number.isInteger(p.arrival) || p.arrival < 0 || p.arrival > 1000) errors.push(`${p.id}: la llegada debe ser un entero entre 0 y 1000.`);
       if (!Number.isInteger(p.burst) || p.burst < 1 || p.burst > 1000) errors.push(`${p.id}: la ráfaga debe ser un entero entre 1 y 1000.`);
-      if (![0, 1, 2].includes(p.queue)) errors.push(`${p.id}: cola inválida.`);
+      if (numQueues > 0 && (!Number.isInteger(p.queue) || p.queue < 0 || p.queue >= numQueues)) errors.push(`${p.id}: cola inválida.`);
     });
-    validateConfig(config).forEach((e) => errors.push(e));
+    cfgErrors.forEach((e) => errors.push(e));
     return errors;
   }
 
@@ -189,17 +257,19 @@
     return arr;
   }
 
-  const qName = (q) => QUEUES[q].name;
-
   function simulate(input, config) {
     const errors = validateInput(input, config);
     if (errors.length) throw new Error(errors.join(' '));
+
+    const numQueues = config.queues.length;
+    const queueIndices = Array.from({ length: numQueues }, (_, i) => i);
+    const qName = (q) => queueName(config, q);
 
     const procs = input.map((p) => ({
       id: p.id, arrival: p.arrival, burst: p.burst, queue: p.queue,
       remaining: p.burst, state: 'new', firstStart: null, finish: null
     }));
-    const ready = [[], [], []];                    // procesos esperando (no ejecutando) por cola
+    const ready = Array.from({ length: numQueues }, () => []); // procesos esperando (no ejecutando) por cola
     const algOf = (q) => config.queues[q].algorithm;
     const quantumOf = (q) => config.queues[q].quantum;
 
@@ -210,13 +280,13 @@
     let carry = [];         // eventos del final del intervalo anterior (finalizaciones)
     let expired = null;     // { proc, q } quantum agotado en el intervalo anterior
     let t = 0, busy = 0, ctx = 0, preemptions = 0;
-    const cpuByQueue = [0, 0, 0];
+    const cpuByQueue = Array(numQueues).fill(0);
     let lastRunPid = null, lastQueue = null, idleActive = false;
 
     const percentMode = config.policy === 'percent';
     const cycleLen = percentMode ? config.cycle : null;
     const quotaAlloc = percentMode ? allocateQuotas(config.percent, config.cycle) : null;
-    let quotaLeft = [0, 0, 0];
+    let quotaLeft = Array(numQueues).fill(0);
     let selKind = 'priority';   // por qué se eligió la cola: 'priority' | 'quota' | 'borrow'
 
     const maxArrival = Math.max(...input.map((p) => p.arrival));
@@ -224,7 +294,7 @@
 
     /** Cola que debe tener la CPU en este instante según la política entre colas. */
     function selectQueue() {
-      const cand = [0, 1, 2].filter((q) => ready[q].length > 0 || (cpu && cpu.proc.queue === q));
+      const cand = queueIndices.filter((q) => ready[q].length > 0 || (cpu && cpu.proc.queue === q));
       if (!cand.length) return { q: null, kind: null };
       if (!percentMode) return { q: cand[0], kind: 'priority' };
       const withQuota = cand.filter((q) => quotaLeft[q] > 0);
@@ -240,8 +310,10 @@
         return `todas las colas con procesos ya agotaron su cuota del ciclo, así que la CPU aprovecha el tiempo sobrante en la de mayor prioridad (${qName(q)}) para no quedar ociosa`;
       }
       if (q === 0) return 'tiene la prioridad más alta y tiene procesos listos';
-      if (q === 1) return 'la cola Sistema está vacía y Interactiva es la siguiente en prioridad';
-      return 'las colas Sistema e Interactiva están vacías, por lo que Batch puede usar la CPU';
+      if (q === 1) return `la cola ${qName(0)} está vacía y ${qName(1)} es la siguiente en prioridad`;
+      const higher = Array.from({ length: q }, (_, i) => qName(i));
+      const joined = `${higher.slice(0, -1).join(', ')} y ${higher[higher.length - 1]}`;
+      return `las colas ${joined} están vacías, por lo que ${qName(q)} puede usar la CPU`;
     }
 
     function reasonInQueue(chosen, candidates, resumed) {
@@ -270,7 +342,7 @@
       const lines = [];
       if (!cpu) return lines;
       const cq = cpu.proc.queue;
-      for (let q = 0; q < 3; q++) {
+      for (let q = 0; q < numQueues; q++) {
         const list = orderedReady(ready[q], algOf(q));
         if (!list.length) continue;
         const ids = list.map((p) => p.id).join(', ');
@@ -332,8 +404,9 @@
       const newCycle = percentMode && t % cycleLen === 0;
       if (newCycle) {
         quotaLeft = quotaAlloc.slice();
-        add('cycle', `Comienza el ciclo ${t / cycleLen + 1} (${cycleLen} unidades): ` +
-          `Sistema ${quotaAlloc[0]}, Interactiva ${quotaAlloc[1]} y Batch ${quotaAlloc[2]} unidades de CPU.`, { cycle: t / cycleLen + 1 });
+        const parts = quotaAlloc.map((v, i) => `${qName(i)} ${v}`);
+        const summary = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} y ${parts[parts.length - 1]}`;
+        add('cycle', `Comienza el ciclo ${t / cycleLen + 1} (${cycleLen} unidades): ${summary} unidades de CPU.`, { cycle: t / cycleLen + 1 });
       }
 
       /* (d) Decisión entre colas: ¿se interrumpe al proceso actual? */
@@ -482,21 +555,21 @@
           id: p.id, queue: p.queue, arrival: p.arrival, burst: p.burst,
           state: p.state, remaining: p.remaining, executed: p.burst - p.remaining
         })),
-        queues: [0, 1, 2].map((q) => orderedReady(ready[q], algOf(q)).map((p) => p.id)),
-        pending: [0, 1, 2].map((q) => procs.filter((p) => p.queue === q && p.state !== 'done').length),
+        queues: queueIndices.map((q) => orderedReady(ready[q], algOf(q)).map((p) => p.id)),
+        pending: queueIndices.map((q) => procs.filter((p) => p.queue === q && p.state !== 'done').length),
         cycle: percentMode && !flags_final(flags) ? { length: cycleLen, index: Math.floor(time / cycleLen), pos: time % cycleLen, quota: quotaAlloc.slice(), left: quotaLeft.slice() } : null
       };
     }
 
     const makespan = t;
-    const metrics = computeMetrics(procs, busy, makespan, ctx, preemptions, cpuByQueue);
+    const metrics = computeMetrics(procs, busy, makespan, ctx, preemptions, cpuByQueue, numQueues);
     return { snapshots, ticks, events: allEvents, metrics, makespan, config: JSON.parse(JSON.stringify(config)) };
   }
 
   /* ===================================================================
      3. MÉTRICAS
      =================================================================== */
-  function computeMetrics(procs, busy, makespan, contextSwitches, preemptions, cpuByQueue) {
+  function computeMetrics(procs, busy, makespan, contextSwitches, preemptions, cpuByQueue, numQueues) {
     const perProcess = procs.map((p) => {
       const turnaround = p.finish - p.arrival;
       return {
@@ -508,9 +581,10 @@
       };
     });
     const avg = (arr, f) => (arr.length ? arr.reduce((s, x) => s + f(x), 0) / arr.length : 0);
-    const perQueue = [0, 1, 2].map((q) => {
+    const qCount = Number.isInteger(numQueues) ? numQueues : (cpuByQueue ? cpuByQueue.length : Math.max(3, ...procs.map((p) => p.queue + 1)));
+    const perQueue = Array.from({ length: qCount }, (_, q) => {
       const list = perProcess.filter((p) => p.queue === q);
-      return { queue: q, count: list.length, cpuTime: cpuByQueue ? cpuByQueue[q] : 0, avgWaiting: avg(list, (p) => p.waiting), avgTurnaround: avg(list, (p) => p.turnaround), avgResponse: avg(list, (p) => p.response) };
+      return { queue: q, count: list.length, cpuTime: cpuByQueue ? (cpuByQueue[q] || 0) : 0, avgWaiting: avg(list, (p) => p.waiting), avgTurnaround: avg(list, (p) => p.turnaround), avgResponse: avg(list, (p) => p.response) };
     });
     return {
       perProcess, perQueue,
@@ -565,20 +639,22 @@
     };
 
     /* ---------- colores por proceso (tonos de la cola a la que pertenece) ---------- */
-    const SHADES = [
-      ['#7a0c1e', '#9a1b30', '#5e0916', '#b33246', '#8c1427', '#a8263b'],
-      ['#1e293b', '#334155', '#0f172a', '#475569', '#27354d', '#3b4a63'],
-      ['#6b7280', '#9ca3af', '#4b5563', '#7c8591', '#a3aab5', '#5f6672']
-    ];
     function luminance(hex) {
       const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
       return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
     }
+    function mixHex(hex, targetHex, ratio) {
+      const p = (h, i) => parseInt(h.slice(i, i + 2), 16);
+      const ch = [1, 3, 5].map((i) => Math.round(p(hex, i) * (1 - ratio) + p(targetHex, i) * ratio));
+      return '#' + ch.map((v) => v.toString(16).padStart(2, '0')).join('');
+    }
     function rebuildColors() {
       App.colors.clear();
-      const count = [0, 0, 0];
+      const count = Array(App.config.queues.length).fill(0);
       App.processes.forEach((p) => {
-        const bg = SHADES[p.queue][count[p.queue]++ % 6];
+        const q = Math.min(Math.max(0, p.queue), App.config.queues.length - 1);
+        const pal = queuePalette(q);
+        const bg = pal.shades[count[q]++ % pal.shades.length];
         App.colors.set(p.id, { bg, fg: luminance(bg) > 0.4 ? '#111827' : '#ffffff' });
       });
     }
@@ -594,42 +670,216 @@
     const lastIndex = () => (App.sim ? App.sim.snapshots.length - 1 : -1);
     const delayMs = () => Math.round(1700 - Number($('#speed').value) * 150);
 
+    function rebalancePercentAdd(pctArr, newLen) {
+      const sum = pctArr.reduce((a, b) => a + b, 0);
+      const validExisting = pctArr.length === newLen - 1 && sum === 100 && pctArr.every((v) => Number.isInteger(v) && v >= 1);
+      if (!validExisting) {
+        pctArr.push(Math.max(1, Math.floor(100 / newLen)));
+        return;
+      }
+      const surplus = pctArr.reduce((s, v) => s + Math.max(0, v - 1), 0);
+      const share = Math.min(10, Math.floor(100 / newLen), surplus);
+      if (share < 1) {
+        pctArr.push(1);
+        return;
+      }
+      let need = share;
+      while (need > 0) {
+        let best = -1;
+        for (let i = 0; i < pctArr.length; i++) if (pctArr[i] > 1 && (best === -1 || pctArr[i] > pctArr[best])) best = i;
+        if (best === -1) break;
+        pctArr[best]--;
+        need--;
+      }
+      pctArr.push(share);
+    }
+    function rebalancePercentRemove(pctArr, idx) {
+      const oldSum = pctArr.reduce((a, b) => a + b, 0);
+      const removed = pctArr.splice(idx, 1)[0] || 0;
+      if (pctArr.length && oldSum === 100 && pctArr.every((v) => Number.isInteger(v) && v >= 1)) {
+        pctArr[0] += removed;
+      }
+    }
+
     /* ===============================================================
        Configuración de las colas
        =============================================================== */
+    function renderQueueSelect() {
+      const sel = $('#f-queue');
+      if (!sel) return;
+      const prev = Number(sel.value);
+      sel.textContent = '';
+      const total = App.config.queues.length;
+      App.config.queues.forEach((_, i) => {
+        const name = queueName(App.config, i);
+        const prio = queuePriorityLabel(i, total).toLowerCase();
+        sel.append(el('option', { value: String(i) }, `Cola ${i + 1} · ${name} (${prio})`));
+      });
+      if (Number.isInteger(prev) && prev >= 0 && prev < total) sel.value = String(prev);
+      else sel.value = String(Math.min(1, total - 1));
+    }
+
+    function renderGanttLegend() {
+      const legend = $('#gantt-legend');
+      if (!legend) return;
+      legend.textContent = '';
+      App.config.queues.forEach((_, i) => {
+        const pal = queuePalette(i);
+        legend.append(el('span', null, el('i', { class: 'lg', style: `background:${pal.base}` }), queueName(App.config, i)));
+      });
+      legend.append(
+        el('span', null, el('b', { class: 'mk mk-ctx' }, '⇄'), ' cambio de contexto'),
+        el('span', null, el('b', { class: 'mk mk-pre' }, '▼'), ' interrupción'),
+        el('span', null, el('b', { class: 'mk mk-fin' }, '✔'), ' finalización'));
+    }
+
+    function onQueueStructureChange(processesChanged) {
+      buildConfig();
+      renderQueueSelect();
+      buildBoard();
+      renderGanttLegend();
+      onModelChange(processesChanged);
+    }
+
+    function moveQueue(idx, dir) {
+      const target = idx + dir;
+      const qs = App.config.queues;
+      if (target < 0 || target >= qs.length) return;
+      [qs[idx], qs[target]] = [qs[target], qs[idx]];
+      const pc = App.config.percent;
+      [pc[idx], pc[target]] = [pc[target], pc[idx]];
+      App.processes.forEach((p) => {
+        if (p.queue === idx) p.queue = target;
+        else if (p.queue === target) p.queue = idx;
+      });
+      onQueueStructureChange(true);
+      toast(`Prioridad actualizada: ${queueName(App.config, target)} ahora es Cola ${target + 1}.`);
+    }
+
+    function removeQueue(idx) {
+      if (App.config.queues.length <= 1) { toast('Debe existir al menos una cola.'); return; }
+      const removedName = queueName(App.config, idx);
+      App.config.queues.splice(idx, 1);
+      rebalancePercentRemove(App.config.percent, idx);
+      const newLen = App.config.queues.length;
+      const fallback = Math.min(idx, newLen - 1);
+      let moved = 0;
+      App.processes.forEach((p) => {
+        if (p.queue === idx) { p.queue = fallback; moved++; }
+        else if (p.queue > idx) p.queue--;
+      });
+      onQueueStructureChange(true);
+      toast(moved
+        ? `Cola "${removedName}" eliminada. ${moved} proceso(s) pasaron a ${queueName(App.config, fallback)}.`
+        : `Cola "${removedName}" eliminada.`);
+    }
+
+    function addQueueFromForm(ev) {
+      ev.preventDefault();
+      const msg = $('#queue-form-msg');
+      const total = App.config.queues.length;
+      const nameRaw = $('#qf-name').value.trim() || `Cola ${total + 1}`;
+      const algorithm = $('#qf-alg').value;
+      const quantum = algorithm === 'RR' ? Number($('#qf-quantum').value) : 2;
+      let err = '';
+      if (total >= MAX_QUEUES) err = `Máximo ${MAX_QUEUES} colas para mantener la simulación legible.`;
+      else if (nameRaw.length > 24) err = 'El nombre de la cola debe tener como máximo 24 caracteres.';
+      else if (App.config.queues.some((_, i) => queueName(App.config, i).toLowerCase() === nameRaw.toLowerCase())) err = `Ya existe una cola llamada "${nameRaw}".`;
+      else if (!ALGORITHMS[algorithm]) err = 'Algoritmo inválido.';
+      else if (algorithm === 'RR' && (!Number.isInteger(quantum) || quantum < 1 || quantum > 99)) err = 'El quantum debe ser un entero entre 1 y 99.';
+      msg.textContent = err;
+      if (err) return;
+
+      App.config.queues.push({
+        name: nameRaw,
+        description: 'Cola personalizada agregada para la simulación.',
+        algorithm,
+        quantum: Number.isInteger(quantum) && quantum >= 1 ? quantum : 2
+      });
+      rebalancePercentAdd(App.config.percent, App.config.queues.length);
+      if (App.config.cycle < App.config.queues.length) App.config.cycle = App.config.queues.length;
+      $('#qf-name').value = '';
+      onQueueStructureChange(true);
+      toast(`Cola "${nameRaw}" agregada como Cola ${App.config.queues.length}.`);
+      $('#qf-name').focus();
+    }
+
+    function syncQueueFormQuantum() {
+      const alg = $('#qf-alg');
+      const qWrap = $('#qf-quantum-wrap');
+      if (!alg || !qWrap) return;
+      const show = ALGORITHMS[alg.value] && ALGORITHMS[alg.value].usesQuantum;
+      qWrap.style.display = show ? '' : 'none';
+    }
+
     function buildConfig() {
       const wrap = $('#queue-config');
       wrap.textContent = '';
-      App.cfgUI = QUEUES.map((q) => {
-        const cfg = App.config.queues[q.id];
-        const select = el('select', { id: `alg-${q.id}`, 'aria-label': `Algoritmo de la cola ${q.name}` },
+      const total = App.config.queues.length;
+      const maxPct = total === 1 ? 100 : 100 - (total - 1);
+      App.cfgUI = App.config.queues.map((cfg, i) => {
+        const name = queueName(App.config, i);
+        const desc = queueDescription(App.config, i);
+        const pal = queuePalette(i);
+
+        const nameInput = el('input', {
+          class: 'qname-input', type: 'text', maxlength: '24', value: name,
+          'aria-label': `Nombre de la cola ${i + 1}`, title: 'Haz clic para editar el nombre de la cola'
+        });
+        nameInput.addEventListener('change', () => {
+          const val = nameInput.value.trim();
+          if (!val) { nameInput.value = queueName(App.config, i); toast('El nombre de la cola no puede estar vacío.'); return; }
+          if (App.config.queues.some((_, j) => j !== i && queueName(App.config, j).toLowerCase() === val.toLowerCase())) {
+            nameInput.value = queueName(App.config, i); toast(`Ya existe una cola llamada "${val}".`); return;
+          }
+          cfg.name = val;
+          renderQueueSelect();
+          renderGanttLegend();
+          const laneTitle = App.board.laneHeads && App.board.laneHeads[i] && App.board.laneHeads[i].name;
+          if (laneTitle) laneTitle.textContent = `Cola ${i + 1} · ${val}`;
+          onModelChange(true);
+        });
+
+        const select = el('select', { id: `alg-${i}`, 'aria-label': `Algoritmo de la cola ${name}` },
           Object.keys(ALGORITHMS).map((k) => el('option', { value: k }, ALGORITHMS[k].label)));
         select.value = cfg.algorithm;
         select.addEventListener('change', () => { cfg.algorithm = select.value; onModelChange(); });
 
-        const quantum = el('input', { id: `q-${q.id}`, type: 'number', min: '1', max: '99', step: '1', value: String(cfg.quantum) });
+        const quantum = el('input', { id: `q-${i}`, type: 'number', min: '1', max: '99', step: '1', value: String(cfg.quantum) });
         quantum.addEventListener('change', () => {
           const v = Number(quantum.value);
           if (!Number.isInteger(v) || v < 1) { quantum.value = String(cfg.quantum); toast('El quantum debe ser un número entero mayor o igual a 1.'); return; }
           cfg.quantum = v; onModelChange();
         });
         const quantumWrap = el('label', { class: 'qfield' }, 'Quantum (unidades de tiempo)', quantum);
-        const pctInput = el('input', { id: `pct-${q.id}`, type: 'number', min: '1', max: '98', step: '1', value: String(App.config.percent[q.id]) });
+        const pctInput = el('input', { id: `pct-${i}`, type: 'number', min: '1', max: String(maxPct), step: '1', value: String(App.config.percent[i]) });
         pctInput.addEventListener('change', () => {
           const v = Number(pctInput.value);
-          if (!Number.isInteger(v) || v < 1 || v > 98) { pctInput.value = String(App.config.percent[q.id]); toast('El porcentaje debe ser un entero entre 1 y 98.'); return; }
-          App.config.percent[q.id] = v; onModelChange();
+          const curTotal = App.config.queues.length;
+          const curMax = curTotal === 1 ? 100 : 100 - (curTotal - 1);
+          if (!Number.isInteger(v) || v < 1 || v > curMax) {
+            pctInput.value = String(App.config.percent[i]);
+            toast(`El porcentaje debe ser un entero entre 1 y ${curMax}.`);
+            return;
+          }
+          App.config.percent[i] = v; onModelChange();
         });
         const quotaTxt = el('span', { class: 'qquota' });
         const pctWrap = el('label', { class: 'qfield qpct' }, '% de la CPU', pctInput, quotaTxt);
         const modality = el('span', { class: 'mod-badge' });
         const note = el('p', { class: 'alg-note' });
         const pending = el('b', null, '0');
-        const card = el('article', { class: `qcard q${q.id}` },
+        const upBtn = el('button', { class: 'qtool', type: 'button', title: 'Subir prioridad', 'aria-label': `Subir prioridad de ${name}`, disabled: i === 0, onclick: () => moveQueue(i, -1) }, '↑');
+        const downBtn = el('button', { class: 'qtool', type: 'button', title: 'Bajar prioridad', 'aria-label': `Bajar prioridad de ${name}`, disabled: i === total - 1, onclick: () => moveQueue(i, 1) }, '↓');
+        const delBtn = el('button', { class: 'qtool qdel', type: 'button', title: `Eliminar ${name}`, 'aria-label': `Eliminar cola ${name}`, disabled: total <= 1, onclick: () => removeQueue(i) }, '✕');
+
+        const card = el('article', { class: `qcard q${i}`, style: `--q-color:${pal.base};--q-soft:${pal.soft}` },
           el('header', null,
-            el('div', null, el('div', { class: 'qlevel' }, `Cola ${q.level}`), el('h4', null, q.name)),
-            el('span', { class: 'prio-pill', title: 'La prioridad de cada cola es fija y no se puede modificar' }, `🔒 ${q.priority}`)),
-          el('p', { class: 'qdesc' }, q.description),
+            el('div', { class: 'qhead-main' }, el('div', { class: 'qlevel' }, `Cola ${i + 1}`), nameInput),
+            el('div', { class: 'qcard-tools' },
+              el('span', { class: 'prio-pill', title: `Prioridad nivel ${i + 1} de ${total}` }, queuePriorityLabel(i, total)),
+              upBtn, downBtn, delBtn)),
+          el('p', { class: 'qdesc' }, desc),
           el('label', { class: 'qfield' }, 'Algoritmo interno', select),
           el('div', { class: 'qmeta' }, el('span', { class: 'lane-tag' }, 'Modalidad:'), modality),
           note,
@@ -639,6 +889,8 @@
         wrap.append(card);
         return { select, quantum, quantumWrap, modality, note, pending, pctInput, quotaTxt };
       });
+      const qfName = $('#qf-name');
+      if (qfName) qfName.placeholder = `Cola ${total + 1}`;
       updateConfigView();
     }
 
@@ -652,9 +904,12 @@
     function updateConfigView() {
       const snap = snapNow();
       const percent = App.config.policy === 'percent';
+      const total = App.config.queues.length;
+      const minCycle = Math.max(3, total);
       document.querySelectorAll('input[name=policy]').forEach((r) => { r.checked = r.value === App.config.policy; });
       $('#panel-config').classList.toggle('percent-on', percent);
       $('#policy-extra').hidden = !percent;
+      $('#cycle').min = String(minCycle);
       $('#cycle').value = String(App.config.cycle);
       const sum = App.config.percent.reduce((a, b) => a + b, 0);
       const sumEl = $('#pct-sum');
@@ -679,14 +934,14 @@
         u.pending.textContent = snap ? snap.pending[i] : App.processes.filter((p) => p.queue === i).length;
       });
       // Cabeceras de las pistas del tablero
-      QUEUES.forEach((q, i) => {
+      App.config.queues.forEach((cfg, i) => {
         const h = App.board.laneHeads && App.board.laneHeads[i];
         if (!h) return;
         h.pref.textContent = percent ? '★ Turno de CPU' : '★ Preferencia de CPU';
-        const cfg = App.config.queues[i], alg = ALGORITHMS[cfg.algorithm];
+        const alg = ALGORITHMS[cfg.algorithm];
         h.alg.textContent = alg.short + (alg.usesQuantum ? ` · q = ${cfg.quantum}` : '');
         h.mod.textContent = alg.modality;
-        const n = snapNow() ? snapNow().pending[i] : App.processes.filter((p) => p.queue === i).length;
+        const n = snap ? snap.pending[i] : App.processes.filter((p) => p.queue === i).length;
         h.pend.textContent = `${n} pendiente${n === 1 ? '' : 's'}`;
       });
     }
@@ -709,7 +964,7 @@
           el('div', { class: 'pbadge', style: `background:${c.bg};color:${c.fg}` }, p.id),
           el('div', { class: 'pname' }, `Proceso ${p.id}`),
           el('div', { class: 'pdata' }, `llegada ${p.arrival} · ráfaga ${p.burst}`),
-          el('div', { class: 'pq' }, `Cola ${QUEUES[p.queue].name}`),
+          el('div', { class: 'pq' }, `Cola ${queueName(App.config, p.queue)}`),
           el('button', { class: 'pdel', type: 'button', title: `Eliminar ${p.id}`, 'aria-label': `Eliminar ${p.id}`, onclick: () => { App.processes = App.processes.filter((x) => x.id !== p.id); onModelChange(true); } }, '✕')));
       });
       $('#f-id').placeholder = nextId();
@@ -725,6 +980,7 @@
       else if (App.processes.some((p) => p.id.toLowerCase() === idRaw.toLowerCase())) err = `Ya existe un proceso llamado ${idRaw}.`;
       else if (!Number.isInteger(arrival) || arrival < 0 || arrival > 1000) err = 'El tiempo de llegada debe ser un entero entre 0 y 1000.';
       else if (!Number.isInteger(burst) || burst < 1 || burst > 1000) err = 'La ráfaga debe ser un entero entre 1 y 1000.';
+      else if (!Number.isInteger(queue) || queue < 0 || queue >= App.config.queues.length) err = 'Cola seleccionada inválida.';
       else if (App.processes.length >= 30) err = 'Máximo 30 procesos para mantener la simulación legible.';
       msg.textContent = err;
       if (err) return;
@@ -733,11 +989,34 @@
       onModelChange(true);
       $('#f-id').focus();
     }
+    function ensureMinQueues(minCount) {
+      let changed = false;
+      while (App.config.queues.length < minCount) {
+        const i = App.config.queues.length;
+        const def = DEFAULT_CONFIG();
+        const template = def.queues[i] || { name: `Cola ${i + 1}`, description: `Cola de prioridad nivel ${i + 1}.`, algorithm: 'FCFS', quantum: 4 };
+        App.config.queues.push(Object.assign({}, template));
+        rebalancePercentAdd(App.config.percent, App.config.queues.length);
+        changed = true;
+      }
+      return changed;
+    }
     function loadScenario(key) {
-      App.processes = SCENARIOS[key].processes.map((p) => Object.assign({}, p));
+      const sc = SCENARIOS[key];
+      let structureChanged = false;
+      if (sc.config) {
+        App.config = JSON.parse(JSON.stringify(sc.config));
+        structureChanged = true;
+      } else {
+        const maxQ = Math.max(...sc.processes.map((p) => p.queue), 2);
+        structureChanged = ensureMinQueues(maxQ + 1);
+      }
+      App.processes = sc.processes.map((p) => Object.assign({}, p));
       $('#form-msg').textContent = '';
-      onModelChange(true);
-      toast(`${SCENARIOS[key].name} cargado.`);
+      $('#queue-form-msg').textContent = '';
+      if (structureChanged) onQueueStructureChange(true);
+      else onModelChange(true);
+      toast(`${sc.name} cargado.`);
     }
 
     /** Cualquier cambio en procesos o configuración invalida la simulación en curso. */
@@ -758,26 +1037,30 @@
     function buildBoard() {
       const board = $('#board');
       board.textContent = '';
+      const total = App.config.queues.length;
+      board.style.setProperty('--q-count', String(total));
       const b = App.board;
       b.poolNew = el('div', { class: 'chips' });
       b.poolDone = el('div', { class: 'chips' });
       board.append(
         el('div', { class: 'pool pool-new' }, el('span', { class: 'pool-title' }, 'Nuevo · aún no llega'), b.poolNew));
       b.lanes = []; b.laneHeads = []; b.arrows = [];
-      QUEUES.forEach((q) => {
-        const head = { alg: el('span', { class: 'lane-tag' }), mod: el('span', { class: 'lane-tag' }), pend: el('span', { class: 'lane-tag' }), share: el('span', { class: 'lane-tag share' }), pref: el('span', { class: 'lane-pref' }, '★ Preferencia de CPU') };
+      App.config.queues.forEach((_, i) => {
+        const pal = queuePalette(i);
+        const nameEl = el('span', { class: 'lane-name' }, `Cola ${i + 1} · ${queueName(App.config, i)}`);
+        const head = { name: nameEl, alg: el('span', { class: 'lane-tag' }), mod: el('span', { class: 'lane-tag' }), pend: el('span', { class: 'lane-tag' }), share: el('span', { class: 'lane-tag share' }), pref: el('span', { class: 'lane-pref' }, '★ Preferencia de CPU') };
         const area = el('div', { class: 'lane-area' });
-        const lane = el('div', { class: `lane q${q.id}`, style: `grid-row:${q.id + 2}` },
+        const lane = el('div', { class: `lane q${i}`, style: `--q-row:${i + 2};--q-color:${pal.base};--q-soft:${pal.soft}` },
           el('div', { class: 'lane-head' },
-            el('span', { class: 'lane-name' }, `Cola ${q.level} · ${q.name}`),
-            el('span', { class: 'lane-tag prio' }, `Prioridad ${q.priority}`),
+            nameEl,
+            el('span', { class: 'lane-tag prio' }, queuePriorityLabel(i, total)),
             head.alg, head.mod, head.pend, head.share, head.pref),
           area);
         b.lanes.push({ lane, area }); b.laneHeads.push(head);
         board.append(lane);
       });
       const arrows = el('div', { class: 'arrows' });
-      QUEUES.forEach(() => {
+      App.config.queues.forEach(() => {
         const a = el('div', { class: 'arrow' });
         a.innerHTML = '<svg viewBox="0 0 44 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h36M30 4l9 8-9 8"/></svg>';
         b.arrows.push(a); arrows.append(a);
@@ -835,7 +1118,7 @@
     function renderBoard() {
       const b = App.board, snap = snapNow();
       const info = new Map();
-      const target = { new: [], done: [], cpu: [], lanes: [[], [], []] };
+      const target = { new: [], done: [], cpu: [], lanes: Array.from({ length: App.config.queues.length }, () => []) };
       if (!snap) {
         App.processes.forEach((p) => { info.set(p.id, { state: 'new', remaining: p.burst, executed: 0, burst: p.burst, arrival: p.arrival }); target.new.push(p.id); });
       } else {
@@ -886,7 +1169,7 @@
       b.cpuTime.textContent = snap ? `t = ${snap.t}` : 'detenida';
       b.cpuSlot.dataset.msg = snap && App.cursor === lastIndex() ? 'Simulación terminada' : '';
       if (cpu) {
-        b.cpuQueue.textContent = QUEUES[cpu.queue].name;
+        b.cpuQueue.textContent = queueName(App.config, cpu.queue);
         b.cpuAlg.textContent = ALGORITHMS[cpu.algorithm].short;
         b.cpuExec.textContent = `${cpu.executed} / ${cpu.burst}`;
         b.cpuRem.textContent = String(cpu.remaining);
@@ -899,7 +1182,7 @@
         b.cpuBar.style.width = '0'; b.cpuDots.textContent = '';
       }
       b.cpuPref.textContent = '';
-      b.cpuPref.append(percent ? 'Cola atendida (reparto por ciclo): ' : 'Cola con preferencia: ', el('b', null, pref === null ? (snap ? 'ninguna (sin procesos listos)' : '—') : QUEUES[pref].name));
+      b.cpuPref.append(percent ? 'Cola atendida (reparto por ciclo): ' : 'Cola con preferencia: ', el('b', null, pref === null ? (snap ? 'ninguna (sin procesos listos)' : '—') : queueName(App.config, pref)));
     }
 
     /* ===============================================================
@@ -999,7 +1282,7 @@
         node.style.background = c ? c.bg : '';
         node.style.color = c ? c.fg : '';
         node.textContent = s.pid === null ? 'ocio' : s.pid;
-        node.title = s.pid === null ? `CPU ociosa · t=${s.start}→${s.end}` : `${s.pid} · cola ${QUEUES[s.queue].name} · t=${s.start}→${s.end}`;
+        node.title = s.pid === null ? `CPU ociosa · t=${s.start}→${s.end}` : `${s.pid} · cola ${queueName(sim.config, s.queue)} · t=${s.start}→${s.end}`;
         node.style.width = `${((s.end - s.start) / M) * 100}%`;
       });
 
@@ -1025,6 +1308,121 @@
     }
 
     /* ===============================================================
+       Cronograma matricial por proceso (Gantt en tabla)
+       =============================================================== */
+    const GT = { sim: null, scroll: null, headCols: [], rows: [] };
+
+    function renderGanttTable() {
+      const host = $('#gantt-table');
+      if (!host) return;
+      if (!App.sim || App.cursor < 0) {
+        if (GT.sim !== null || !host.firstChild) {
+          host.textContent = '';
+          host.append(el('div', { class: 'gantt-empty' }, 'La matriz de ejecución por proceso se completará aquí, unidad por unidad, cuando inicies la simulación.'));
+          GT.sim = null; GT.scroll = null; GT.headCols = []; GT.rows = [];
+        }
+        return;
+      }
+      const sim = App.sim, M = sim.makespan, cur = App.cursor, snap = snapNow();
+
+      if (GT.sim !== sim) {
+        host.textContent = '';
+        GT.sim = sim; GT.headCols = []; GT.rows = [];
+        const timeHeaders = Array.from({ length: M + 1 }, (_, t) => {
+          const th = el('th', { class: 'gt-col-t', scope: 'col' }, String(t));
+          GT.headCols.push(th);
+          return th;
+        });
+        const thead = el('thead', null, el('tr', null,
+          el('th', { class: 'gt-col-proc', scope: 'col' }, 't (u)'),
+          timeHeaders,
+          el('th', { class: 'gt-col-rem', scope: 'col', title: 'Tiempo restante durante la ejecución; al finalizar muestra el instante de término (t = Fin)' }, 'Restante / Fin')));
+
+        const bodyRows = App.processes.map((p) => {
+          const c = App.colors.get(p.id) || { bg: queuePalette(p.queue).base, fg: '#ffffff' };
+          const waitBg = mixHex(c.bg, '#ffffff', 0.84);
+          const m = sim.metrics.perProcess.find((x) => x.id === p.id);
+          const cells = Array.from({ length: M + 1 }, () => {
+            const box = el('div', { class: 'gt-cell gt-future' });
+            return { td: el('td', { class: 'gt-td' }, box), box, sig: '' };
+          });
+          const remEl = el('span', { class: 'gt-rem-pill' }, '');
+          const procBtn = el('span', {
+            class: 'gt-proc-pill',
+            style: `background:${c.bg};color:${c.fg}`,
+            title: `${p.id} · Cola ${queueName(sim.config, p.queue)} · llegada ${p.arrival} · ráfaga ${p.burst}`
+          }, p.id);
+          const tr = el('tr', null,
+            el('th', { class: 'gt-proc', scope: 'row' }, procBtn),
+            cells.map((x) => x.td),
+            el('td', { class: 'gt-rem' }, remEl));
+          GT.rows.push({ proc: p, finish: m.finish, c, waitBg, cells, remEl });
+          return tr;
+        });
+        const table = el('table', { class: 'gt-matrix' }, thead, el('tbody', null, bodyRows));
+        GT.scroll = el('div', { class: 'gt-scroll' }, table);
+        host.append(GT.scroll);
+      }
+
+      GT.headCols.forEach((th, t) => th.classList.toggle('is-now', t === cur));
+
+      GT.rows.forEach(({ proc, finish, c, waitBg, cells, remEl }) => {
+        const snapProc = snap.procs.find((x) => x.id === proc.id);
+        const qLabel = queueName(sim.config, proc.queue);
+        for (let t = 0; t <= M; t++) {
+          const cell = cells[t];
+          let cls, bg, fg, txt, title;
+          if (t > cur) {
+            cls = 'gt-cell gt-future'; bg = ''; fg = ''; txt = '';
+            title = `${proc.id} · t = ${t}: pendiente`;
+          } else if (t === finish) {
+            cls = 'gt-cell gt-fin'; bg = ''; fg = ''; txt = 'F';
+            title = `${proc.id} · t = ${t}: finaliza ejecución`;
+          } else if (t < M && sim.ticks[t].pid === proc.id) {
+            const isArr = t === proc.arrival;
+            cls = 'gt-cell gt-run' + (isArr ? ' has-x' : '') + (t === cur ? ' is-live' : '');
+            bg = c.bg; fg = c.fg; txt = isArr ? 'x' : '';
+            title = `${proc.id} · t = ${t}: ${isArr ? 'llega y ejecuta en CPU' : 'ejecutando en CPU'} (${qLabel})`;
+          } else if (t >= proc.arrival && t < finish) {
+            const isArr = t === proc.arrival;
+            cls = 'gt-cell gt-wait' + (isArr ? ' has-x' : '');
+            bg = waitBg; fg = '#1f2937'; txt = isArr ? 'x' : '';
+            title = `${proc.id} · t = ${t}: ${isArr ? 'llega y espera en cola' : 'esperando en cola'} ${qLabel}`;
+          } else {
+            cls = 'gt-cell gt-off'; bg = ''; fg = ''; txt = '';
+            title = `${proc.id} · t = ${t}: ${t < proc.arrival ? 'aún no llega' : 'ya finalizó'}`;
+          }
+          const sig = `${cls}|${bg}|${fg}|${txt}`;
+          if (cell.sig !== sig) {
+            cell.sig = sig;
+            cell.box.className = cls;
+            cell.box.style.background = bg;
+            cell.box.style.color = fg;
+            cell.box.textContent = txt;
+            cell.box.title = title;
+          }
+        }
+        if (snapProc.state === 'done') {
+          remEl.className = 'gt-rem-pill is-done';
+          remEl.style.background = waitBg;
+          remEl.style.color = '#111827';
+          remEl.textContent = `t = ${finish}`;
+        } else {
+          remEl.className = 'gt-rem-pill ' + (snapProc.state === 'new' ? 'is-new' : 'is-active');
+          remEl.style.background = '';
+          remEl.style.color = '';
+          remEl.textContent = `resta ${snapProc.remaining}`;
+        }
+      });
+
+      if (GT.scroll && GT.scroll.scrollWidth > GT.scroll.clientWidth && GT.headCols[cur]) {
+        const th = GT.headCols[cur];
+        const target = th.offsetLeft - GT.scroll.clientWidth + 140;
+        GT.scroll.scrollTo({ left: Math.max(0, target), behavior: App.status === 'running' ? 'smooth' : 'auto' });
+      }
+    }
+
+    /* ===============================================================
        Tabla de procesos en vivo (Fin / Retorno / Espera se llenan al terminar)
        =============================================================== */
     function renderProcTable() {
@@ -1040,9 +1438,10 @@
         if (isDone) done.add(p.id);
         const fresh = isDone && !App.prevDone.has(p.id);
         const cell = (v) => el('td', { class: fresh ? 'fill' : '' }, isDone ? String(v) : '');
+        const qColor = queuePalette(p.queue).base;
         return el('tr', { class: st === 'running' ? 'row-run' : (st === 'new' && snap ? 'row-new' : '') },
-          el('th', { scope: 'row', style: `color:${SHADES[p.queue][0]}` }, p.id),
-          el('td', null, el('span', { class: 'qtxt', style: `color:${SHADES[p.queue][0]}` }, `Q${p.queue + 1}`), ` · ${QUEUES[p.queue].name}`),
+          el('th', { scope: 'row', style: `color:${qColor}` }, p.id),
+          el('td', null, el('span', { class: 'qtxt', style: `color:${qColor}` }, `Q${p.queue + 1}`), ` · ${queueName(App.config, p.queue)}`),
           el('td', null, String(p.arrival)), el('td', null, String(p.burst)),
           cell(m ? m.finish : ''), cell(m ? m.turnaround : ''), cell(m ? m.waiting : ''));
       });
@@ -1081,7 +1480,7 @@
         el('thead', null, el('tr', null, head.map((h, i) => el('th', { class: i >= 2 ? 'tnum' : '' }, h)))),
         el('tbody', null, m.perProcess.map((p) => el('tr', null,
           el('th', { scope: 'row' }, p.id),
-          el('td', null, el('span', { class: 'qdot', style: `background:${SHADES[p.queue][0]}` }), QUEUES[p.queue].name),
+          el('td', null, el('span', { class: 'qdot', style: `background:${queuePalette(p.queue).base}` }), queueName(cfg, p.queue)),
           [p.arrival, p.burst, p.start, p.finish, p.waiting, p.turnaround, p.response].map((v) => el('td', { class: 'tnum' }, String(v)))))),
         el('tfoot', null, el('tr', null, el('td', { colspan: '6' }, 'Promedios'), el('td', { class: 'tnum' }, fmt(m.avgWaiting)), el('td', { class: 'tnum' }, fmt(m.avgTurnaround)), el('td', { class: 'tnum' }, fmt(m.avgResponse)))));
       box.append(el('div', { class: 'res-main' }, el('div', { class: 'table-wrap' }, table)));
@@ -1092,12 +1491,13 @@
       const qTable = el('table', null,
         el('thead', null, el('tr', null, qHead.map((h, i) => el('th', { class: i ? 'tnum' : '' }, h)))),
         el('tbody', null, m.perQueue.map((q) => el('tr', null,
-          el('th', { scope: 'row' }, el('span', { class: 'qdot', style: `background:${SHADES[q.queue][0]}` }), QUEUES[q.queue].name),
+          el('th', { scope: 'row' }, el('span', { class: 'qdot', style: `background:${queuePalette(q.queue).base}` }), queueName(cfg, q.queue)),
           el('td', { class: 'tnum' }, String(q.count)),
           el('td', { class: 'tnum' }, q.count ? fmt(q.avgWaiting) : '—'),
           el('td', { class: 'tnum' }, q.count ? fmt(q.avgTurnaround) : '—'),
           el('td', { class: 'tnum' }, `${q.cpuTime} u (${m.busy ? (Math.round((q.cpuTime / m.busy) * 1000) / 10).toFixed(1) : '0.0'} %)`),
           percent ? el('td', { class: 'tnum' }, `${cfg.percent[q.queue]} % · ${quotas[q.queue]} u/ciclo`) : null))));
+      const orderText = cfg.queues.map((_, i) => queueName(cfg, i)).join(' > ');
       const how = el('div', { class: 'how' },
         el('h4', null, 'Cómo se calculan'),
         el('ul', null,
@@ -1107,7 +1507,7 @@
           el('li', null, el('code', null, 'Utilización'), ' = tiempo con CPU ocupada ÷ makespan')),
         el('p', null, percent
           ? `Política usada: porcentajes de CPU (${cfg.percent.join(' / ')} %, ciclo de ${cfg.cycle} unidades). El porcentaje real puede diferir del configurado cuando una cola se queda sin procesos y las demás aprovechan su tiempo.`
-          : 'Política usada: prioridad fija entre colas (Sistema > Interactiva > Batch).'));
+          : `Política usada: prioridad fija entre colas (${orderText}).`));
       box.append(el('div', { class: 'res-grid' }, el('div', { class: 'res-block' }, el('h4', null, 'Promedios por cola'), el('div', { class: 'table-wrap' }, qTable)), how));
     }
 
@@ -1175,6 +1575,7 @@
       renderExplain();
       renderLog();
       renderGantt();
+      renderGanttTable();
       renderProcTable();
       renderResults();
       updateControls();
@@ -1182,20 +1583,38 @@
 
     /* ---------- arranque ---------- */
     buildConfig();
+    renderQueueSelect();
     buildBoard();
+    renderGanttLegend();
     renderProcList();
+    syncQueueFormQuantum();
 
     document.querySelectorAll('input[name=policy]').forEach((r) => r.addEventListener('change', () => { if (r.checked) { App.config.policy = r.value; onModelChange(); } }));
     $('#cycle').addEventListener('change', () => {
       const v = Number($('#cycle').value);
-      if (!Number.isInteger(v) || v < 3 || v > 100) { $('#cycle').value = String(App.config.cycle); toast('El ciclo debe ser un entero entre 3 y 100 unidades.'); return; }
+      const minCycle = Math.max(3, App.config.queues.length);
+      if (!Number.isInteger(v) || v < minCycle || v > 100) {
+        $('#cycle').value = String(App.config.cycle);
+        toast(`El ciclo debe ser un entero entre ${minCycle} y 100 unidades.`);
+        return;
+      }
       App.config.cycle = v; onModelChange();
     });
+    $('#queue-form').addEventListener('submit', addQueueFromForm);
+    $('#qf-alg').addEventListener('change', syncQueueFormQuantum);
     $('#proc-form').addEventListener('submit', addProcessFromForm);
     $('#btn-base').addEventListener('click', () => loadScenario('base'));
     $('#btn-interrup').addEventListener('click', () => loadScenario('interrupciones'));
+    $('#btn-multicola').addEventListener('click', () => loadScenario('multicola'));
     $('#btn-clear').addEventListener('click', () => { App.processes = []; onModelChange(true); });
-    $('#btn-config-reset').addEventListener('click', () => { App.config = DEFAULT_CONFIG(); buildConfig(); onModelChange(); toast('Configuración predeterminada restaurada.'); });
+    $('#btn-config-reset').addEventListener('click', () => {
+      App.config = DEFAULT_CONFIG();
+      let clamped = 0;
+      App.processes.forEach((p) => { if (p.queue >= App.config.queues.length) { p.queue = App.config.queues.length - 1; clamped++; } });
+      $('#queue-form-msg').textContent = '';
+      onQueueStructureChange(true);
+      toast(clamped ? `Configuración predeterminada restaurada (${clamped} proceso(s) reasignados a Batch).` : 'Configuración predeterminada restaurada.');
+    });
     $('#btn-start').addEventListener('click', start);
     $('#btn-pause').addEventListener('click', pause);
     $('#btn-resume').addEventListener('click', resume);
@@ -1223,7 +1642,7 @@
   /* ===================================================================
      EXPORTACIÓN (navegador: window.MLQ · Node: require)
      =================================================================== */
-  const api = { QUEUES, ALGORITHMS, SCENARIOS, DEFAULT_CONFIG, simulate, computeMetrics, validateInput, validateConfig, allocateQuotas, naturalCompare, orderedReady };
+  const api = { QUEUES, QUEUE_PALETTE, MAX_QUEUES, ALGORITHMS, SCENARIOS, DEFAULT_CONFIG, simulate, computeMetrics, validateInput, validateConfig, allocateQuotas, naturalCompare, orderedReady, queueName };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else global.MLQ = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -134,13 +134,13 @@
       <p>Configura las colas, agrega procesos y observa cada decisión del planificador. Atajos: <kbd>Espacio</kbd> pausar/continuar · <kbd>→</kbd> siguiente paso · <kbd>←</kbd> paso anterior.</p>
     </div>
 
-    <!-- Configuración de las tres colas -->
+    <!-- Configuración de las colas -->
     <div class="panel" id="panel-config">
       <div class="panel-head">
         <h3>1 · Configuración de las colas</h3>
         <button class="btn btn-small btn-outline" id="btn-config-reset" type="button">Restaurar configuración</button>
       </div>
-      <p class="hint">Elige cómo se reparte la CPU <strong>entre</strong> las tres colas y, para cada cola, qué algoritmo usa <strong>por dentro</strong>. El orden de prioridad es siempre <strong>Sistema &gt; Interactiva &gt; Batch</strong> y no se puede cambiar.</p>
+      <p class="hint">Elige cómo se reparte la CPU <strong>entre</strong> las colas y, para cada cola, qué algoritmo usa <strong>por dentro</strong>. La prioridad va de <strong>Cola 1 (más alta)</strong> hacia abajo; puedes conservar las 3 colas básicas, editarlas, reordenarlas o agregar más colas.</p>
       <div class="policy" id="policy">
         <div class="policy-opts" role="radiogroup" aria-label="Política de planificación entre colas">
           <label class="policy-opt"><input type="radio" name="policy" value="priority" checked>
@@ -153,10 +153,28 @@
             <input id="cycle" type="number" min="3" max="100" step="1" value="10">
           </label>
           <div class="pct-sum" id="pct-sum" aria-live="polite"></div>
-          <p class="hint small" style="margin:0;flex:1 1 280px">En cada ciclo, cada cola usa su cuota por orden de prioridad (Sistema, luego Interactiva, luego Batch). Si una cola está vacía, su tiempo lo aprovechan las demás: la CPU no se desperdicia.</p>
+          <p class="hint small" style="margin:0;flex:1 1 280px">En cada ciclo, cada cola usa su cuota por orden de prioridad (Cola 1, Cola 2, …, Cola N). Si una cola está vacía, su tiempo lo aprovechan las demás: la CPU no se desperdicia.</p>
         </div>
         <p class="form-msg" id="policy-msg" role="alert" aria-live="polite"></p>
       </div>
+      <form class="queue-form" id="queue-form" autocomplete="off" novalidate>
+        <label>Nueva cola
+          <input id="qf-name" type="text" maxlength="24" placeholder="Cola 4">
+        </label>
+        <label>Algoritmo interno
+          <select id="qf-alg">
+            <option value="FCFS">FCFS (First Come, First Served)</option>
+            <option value="SJF">SJF (Shortest Job First)</option>
+            <option value="SRTF">SRTF (Shortest Remaining Time First)</option>
+            <option value="RR" selected>Round Robin (RR)</option>
+          </select>
+        </label>
+        <label id="qf-quantum-wrap">Quantum
+          <input id="qf-quantum" type="number" min="1" max="99" step="1" value="2">
+        </label>
+        <button class="btn btn-primary" type="submit">+ Agregar cola</button>
+      </form>
+      <p class="form-msg" id="queue-form-msg" role="alert" aria-live="polite"></p>
       <div class="queue-config" id="queue-config"></div>
     </div>
 
@@ -167,6 +185,7 @@
         <div class="btn-row">
           <button class="btn btn-small btn-primary" id="btn-base" type="button">Cargar escenario base</button>
           <button class="btn btn-small btn-outline" id="btn-interrup" type="button">Escenario con interrupciones</button>
+          <button class="btn btn-small btn-outline" id="btn-multicola" type="button">Escenario 5 colas</button>
           <button class="btn btn-small btn-outline" id="btn-clear" type="button">Vaciar</button>
         </div>
       </div>
@@ -234,7 +253,7 @@
     <div class="panel" id="panel-gantt">
       <div class="panel-head">
         <h3>4 · Diagrama de Gantt</h3>
-        <div class="gantt-legend">
+        <div class="gantt-legend" id="gantt-legend">
           <span><i class="lg q0"></i>Sistema</span>
           <span><i class="lg q1"></i>Interactiva</span>
           <span><i class="lg q2"></i>Batch</span>
@@ -246,10 +265,24 @@
       <div class="gantt" id="gantt"></div>
     </div>
 
+    <!-- Tabla matricial del Gantt por proceso -->
+    <div class="panel" id="panel-gantt-table">
+      <div class="panel-head">
+        <h3>5 · Cronograma por proceso (Gantt en tabla)</h3>
+        <div class="gt-legend" aria-label="Leyenda del cronograma por proceso">
+          <span><b class="gt-sym gt-sym-x">x</b> llegada</span>
+          <span><i class="gt-sw gt-sw-wait"></i> esperando</span>
+          <span><i class="gt-sw gt-sw-run"></i> ejecutándose</span>
+          <span><b class="gt-sym gt-sym-f">F</b> finalización</span>
+        </div>
+      </div>
+      <div class="gantt-table" id="gantt-table"></div>
+    </div>
+
     <!-- Tabla de procesos -->
     <div class="panel" id="panel-tabla">
       <div class="panel-head">
-        <h3>5 · Tabla de procesos</h3>
+        <h3>6 · Tabla de procesos</h3>
         <span class="hint" style="margin:0">Fin, retorno y espera se completan cuando cada proceso termina.</span>
       </div>
       <div class="table-wrap"><div id="proc-table"></div></div>
@@ -259,14 +292,14 @@
     <div class="two-col">
       <div class="panel explain-panel" id="panel-explica">
         <div class="panel-head">
-          <h3>6 · ¿Qué está pasando?</h3>
+          <h3>7 · ¿Qué está pasando?</h3>
           <span class="time-pill" id="explain-time">—</span>
         </div>
         <div id="explain" class="explain"></div>
       </div>
       <div class="panel log-panel" id="panel-log">
         <div class="panel-head">
-          <h3>7 · Registro de eventos</h3>
+          <h3>8 · Registro de eventos</h3>
           <span class="time-pill" id="log-count">0 eventos</span>
         </div>
         <ol id="log" class="log"></ol>
