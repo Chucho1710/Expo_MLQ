@@ -10,8 +10,7 @@
         conservación del trabajo, identidades de las métricas, etc.)
    ===================================================================== */
 'use strict';
-const MLQ = require('./script.js');
-const { simulate, SCENARIOS, DEFAULT_CONFIG, naturalCompare } = MLQ;
+import MLQ, { simulate, SCENARIOS, DEFAULT_CONFIG, naturalCompare } from './src/engine/mlqEngine.js';
 
 let checks = 0;
 const failures = [];
