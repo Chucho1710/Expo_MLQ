@@ -1,7 +1,7 @@
 import React from 'react';
-import { queueName, queuePalette } from '../engine/mlqEngine.js';
+import { queueName, queuePalette } from '../../../engine/mlqEngine.js';
 
-export default function ProcessTable({
+export default function LiveProcessTable({
   processes,
   config,
   currentSnapshot,

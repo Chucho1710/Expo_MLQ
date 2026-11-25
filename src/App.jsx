@@ -1,18 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import Topbar from './components/Topbar.jsx';
-import Hero from './components/Hero.jsx';
-import Theory from './components/Theory.jsx';
-import QueueConfigPanel from './components/QueueConfigPanel.jsx';
-import ProcessPanel from './components/ProcessPanel.jsx';
-import Controls from './components/Controls.jsx';
-import Board from './components/Board.jsx';
-import GanttChart from './components/GanttChart.jsx';
-import GanttTable from './components/GanttTable.jsx';
-import ProcessTable from './components/ProcessTable.jsx';
-import ExplainAndLog from './components/ExplainAndLog.jsx';
-import Results from './components/Results.jsx';
-import Footer from './components/Footer.jsx';
-import Toast from './components/Toast.jsx';
+import Topbar from './components/layout/Topbar.jsx';
+import Hero from './components/layout/Hero.jsx';
+import Footer from './components/layout/Footer.jsx';
+import TheorySection from './components/theory/TheorySection.jsx';
+import SimulatorSection from './components/simulator/SimulatorSection.jsx';
+import ResultsSection from './components/results/ResultsSection.jsx';
+import Toast from './components/common/Toast.jsx';
 
 import {
   DEFAULT_CONFIG,
@@ -227,98 +220,35 @@ export default function App() {
       <Hero />
 
       <main>
-        <Theory />
+        <TheorySection />
 
-        <section className="sim-section" id="simulador">
-          <div className="wrap">
-            <div className="section-head on-dark">
-              <span className="eyebrow">Laboratorio</span>
-              <h2>Simulador interactivo de MLQ</h2>
-              <p>
-                Configura las colas, agrega procesos y observa cada decisión del planificador.
-                Atajos: <kbd>Espacio</kbd> pausar/continuar · <kbd>→</kbd> siguiente paso · <kbd>←</kbd> paso anterior.
-              </p>
-            </div>
-
-            <QueueConfigPanel
-              config={config}
-              processes={processes}
-              currentSnapshot={currentSnapshot}
-              onChangeConfig={handleConfigChange}
-              onResetConfig={handleResetConfig}
-              toast={showToast}
-            />
-
-            <ProcessPanel
-              processes={processes}
-              config={config}
-              onProcessesChange={handleProcessesChange}
-              onLoadScenario={handleLoadScenario}
-              onClearProcesses={handleClearProcesses}
-              toast={showToast}
-            />
-
-            <Controls
-              status={status}
-              cursor={cursor}
-              currentSnapshot={currentSnapshot}
-              speed={speed}
-              onSpeedChange={setSpeed}
-              onStart={handleStart}
-              onPause={handlePause}
-              onResume={handleResume}
-              onStepNext={handleStepNext}
-              onStepBack={handleStepBack}
-              onGoEnd={handleGoEnd}
-              onReset={handleReset}
-            />
-
-            <Board
-              processes={processes}
-              config={config}
-              currentSnapshot={currentSnapshot}
-              isFinished={isFinished}
-              simResult={simResult}
-            />
-
-            <GanttChart
-              simResult={simResult}
-              cursor={cursor}
-              processes={processes}
-              config={config}
-              status={status}
-              ganttMs={ganttMs}
-            />
-
-            <GanttTable
-              simResult={simResult}
-              cursor={cursor}
-              currentSnapshot={currentSnapshot}
-              processes={processes}
-              config={config}
-              status={status}
-            />
-
-            <ProcessTable
-              processes={processes}
-              config={config}
-              currentSnapshot={currentSnapshot}
-              simResult={simResult}
-            />
-
-            <ExplainAndLog
-              currentSnapshot={currentSnapshot}
-              simResult={simResult}
-              cursor={cursor}
-            />
-          </div>
-        </section>
-
-        <Results
+        <SimulatorSection
+          config={config}
+          processes={processes}
+          currentSnapshot={currentSnapshot}
           simResult={simResult}
           cursor={cursor}
-          config={config}
+          status={status}
+          speed={speed}
+          isFinished={isFinished}
+          ganttMs={ganttMs}
+          onChangeConfig={handleConfigChange}
+          onResetConfig={handleResetConfig}
+          onProcessesChange={handleProcessesChange}
+          onLoadScenario={handleLoadScenario}
+          onClearProcesses={handleClearProcesses}
+          onSpeedChange={setSpeed}
+          onStart={handleStart}
+          onPause={handlePause}
+          onResume={handleResume}
+          onStepNext={handleStepNext}
+          onStepBack={handleStepBack}
+          onGoEnd={handleGoEnd}
+          onReset={handleReset}
+          toast={showToast}
         />
+
+        <ResultsSection simResult={simResult} cursor={cursor} />
       </main>
 
       <Footer />

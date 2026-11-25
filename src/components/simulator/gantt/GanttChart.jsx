@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { queueName, queuePalette, getProcessColors } from '../engine/mlqEngine.js';
+import { queueName, queuePalette, getProcessColors } from '../../../engine/mlqEngine.js';
 
 function computeSegs(ticks) {
   const segs = [];
@@ -28,7 +28,6 @@ export default function GanttChart({
   const M = simResult ? simResult.makespan : 0;
   const isPercent = config.policy === 'percent';
 
-  // Auto-scroll durante la ejecución
   useEffect(() => {
     if (scrollRef.current && M > 0 && cursor >= 0) {
       const el = scrollRef.current;
@@ -71,7 +70,6 @@ export default function GanttChart({
   const ticks = simResult.ticks.slice(0, cursor + 1);
   const segs = computeSegs(ticks);
 
-  // Calcular marcas hasta el cursor actual
   const preMarks = [];
   const ctxMarks = [];
   const finMarks = [];
@@ -100,13 +98,11 @@ export default function GanttChart({
     });
   });
 
-  // Ticks para el eje de tiempo
   const step = Math.max(1, Math.ceil(M / 30));
   const axisTicks = [];
   for (let i = 0; i < M; i += step) axisTicks.push(i);
   if (!axisTicks.includes(M)) axisTicks.push(M);
 
-  // Líneas divisorias de ciclo
   const cycleDividers = [];
   if (isPercent && config.cycle > 0) {
     for (let k = config.cycle; k < M; k += config.cycle) {
@@ -134,7 +130,6 @@ export default function GanttChart({
       <div className="gantt" id="gantt" style={{ '--gdur': `${ganttMs}ms` }}>
         <div className="g-scroll" ref={scrollRef}>
           <div className="g-inner" style={{ minWidth: `${Math.max(600, M * 26)}px` }}>
-            {/* Tira superior para marcas de interrupción y cambio de contexto */}
             <div className="g-strip">
               {preMarks.map((m) => (
                 <span
@@ -158,7 +153,6 @@ export default function GanttChart({
               ))}
             </div>
 
-            {/* Pista de bloques de ejecución */}
             <div
               className="g-track"
               style={{ backgroundSize: `${100 / M}% 100%` }}
@@ -212,7 +206,6 @@ export default function GanttChart({
               ))}
             </div>
 
-            {/* Eje de tiempo con ticks */}
             <div className="g-axis">
               {axisTicks.map((t) => (
                 <span

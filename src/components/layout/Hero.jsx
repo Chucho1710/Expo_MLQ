@@ -4,7 +4,9 @@ export default function Hero() {
   return (
     <section className="hero" id="inicio">
       <div className="wrap hero-inner">
-        <span className="tag"><span className="dot"></span> Simulador interactivo</span>
+        <span className="tag">
+          <span className="dot" /> Simulador interactivo
+        </span>
         <h1>MLQ — Planificación por Colas Multinivel</h1>
         <p className="subtitle">
           Comprende cómo los sistemas operativos clasifican y planifican procesos mediante múltiples colas de prioridad.
@@ -15,8 +17,12 @@ export default function Hero() {
           a la cola de mayor prioridad que tenga trabajo pendiente.
         </p>
         <div className="hero-actions">
-          <a className="btn btn-primary" href="#simulador">Ir al simulador</a>
-          <a className="btn btn-ghost" href="#teoria">Ver la teoría</a>
+          <a className="btn btn-primary" href="#simulador">
+            Ir al simulador
+          </a>
+          <a className="btn btn-ghost" href="#teoria">
+            Ver la teoría
+          </a>
         </div>
       </div>
     </section>

@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import SpeedControl from './SpeedControl.jsx';
 
 export default function Controls({
   status,
@@ -14,8 +15,6 @@ export default function Controls({
   onGoEnd,
   onReset
 }) {
-  const delayMs = Math.round(1700 - speed * 150);
-
   // Atajos de teclado: Espacio (pausar/continuar), Flecha der (siguiente), Flecha izq (anterior)
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -116,22 +115,7 @@ export default function Controls({
         </button>
       </div>
 
-      <div className="speed">
-        <label htmlFor="speed">Velocidad</label>
-        <span className="speed-end">lenta</span>
-        <input
-          id="speed"
-          type="range"
-          min="1"
-          max="10"
-          value={speed}
-          onChange={(e) => onSpeedChange(Number(e.target.value))}
-        />
-        <span className="speed-end">rápida</span>
-        <output id="speed-label" htmlFor="speed">
-          1 unidad / {(delayMs / 1000).toFixed(1)} s
-        </output>
-      </div>
+      <SpeedControl speed={speed} onSpeedChange={onSpeedChange} />
 
       <div className="clock" aria-live="polite">
         Tiempo <strong id="clock">{currentSnapshot ? currentSnapshot.t : '—'}</strong>

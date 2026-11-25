@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { queueName, queuePalette, getProcessColors, mixHex } from '../engine/mlqEngine.js';
+import { queueName, queuePalette, getProcessColors, mixHex } from '../../../engine/mlqEngine.js';
 
 export default function GanttTable({
   simResult,
@@ -15,7 +15,6 @@ export default function GanttTable({
 
   const M = simResult ? simResult.makespan : 0;
 
-  // Auto-scroll para seguir la columna actual
   useEffect(() => {
     if (scrollRef.current && cursor >= 0 && headColsRef.current[cursor]) {
       const el = scrollRef.current;
