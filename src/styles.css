@@ -277,7 +277,8 @@ kbd { font-family: var(--mono); font-size: .8em; background: var(--slate-100); b
 .g-inner { position: relative; padding-top: 24px; }
 .g-strip { position: absolute; left: 0; right: 0; top: 0; height: 22px; }
 .g-track { position: relative; height: 58px; background-color: var(--slate-200); border-radius: 8px; background-image: linear-gradient(to right, rgba(255,255,255,.85) 1px, transparent 1px); overflow: hidden; }
-.g-block { position: absolute; top: 0; bottom: 0; width: 0; display: grid; place-items: center; color: var(--white); font-weight: 800; font-size: 1.05rem; overflow: hidden; white-space: nowrap; border-right: 2px solid rgba(255,255,255,.9); transition: width var(--gdur) linear; will-change: width; }
+.g-block { position: absolute; top: 0; bottom: 0; display: grid; place-items: center; color: var(--white); font-weight: 800; font-size: 1.05rem; overflow: hidden; white-space: nowrap; border-right: 2px solid rgba(255,255,255,.9); }
+.g-block.live { transition: width var(--gdur) linear; will-change: width; }
 .g-block.live::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(115deg, rgba(255,255,255,.16) 0 8px, transparent 8px 16px); background-size: 22px 100%; animation: stripes 1s linear infinite; }
 @keyframes stripes { to { background-position: 22px 0; } }
 .g-block.idle { background: repeating-linear-gradient(45deg, #d5d9df 0 6px, #e5e7eb 6px 12px); color: var(--muted); font-size: .8rem; }

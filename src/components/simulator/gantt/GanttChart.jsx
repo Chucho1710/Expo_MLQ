@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { queueName, queuePalette, getProcessColors } from '../../../engine/mlqEngine.js';
 
 function computeSegs(ticks) {
@@ -14,6 +14,59 @@ function computeSegs(ticks) {
   return segs;
 }
 
+/**
+ * Bloque vivo (el último segmento, el que está creciendo).
+ * Se monta con width=0 y en el siguiente frame de animación se anima
+ * hasta su ancho real, para que la transición CSS funcione correctamente
+ * sin que los bloques ya terminados también animen al entrar al DOM.
+ */
+function LiveBlock({ seg, widthPct, leftPct, col, isIdle, config, ganttMs }) {
+  const [w, setW] = useState(0);
+  const keyRef = useRef(null);
+  const segKey = `${seg.start}-${seg.pid || 'idle'}`;
+
+  useEffect(() => {
+    // Si el segmento cambió (nuevo proceso / nuevo idle), resetear a 0 primero
+    if (keyRef.current !== segKey) {
+      keyRef.current = segKey;
+      setW(0);
+      // Doble rAF garantiza que el navegador pinte width=0 antes de iniciar la transición CSS
+      let id2 = 0;
+      const id1 = requestAnimationFrame(() => {
+        id2 = requestAnimationFrame(() => setW(widthPct));
+      });
+      return () => {
+        cancelAnimationFrame(id1);
+        cancelAnimationFrame(id2);
+      };
+    } else {
+      // Mismo segmento creciendo: actualizar el ancho directamente
+      setW(widthPct);
+    }
+  }, [segKey, widthPct]);
+
+  return (
+    <div
+      key={segKey}
+      className={`g-block live ${isIdle ? 'idle' : ''}`}
+      style={{
+        left: `${leftPct}%`,
+        width: `${w}%`,
+        '--gdur': `${ganttMs || 400}ms`,
+        background: col ? col.bg : '',
+        color: col ? col.fg : ''
+      }}
+      title={
+        isIdle
+          ? `CPU ociosa · t=${seg.start}→${seg.end}`
+          : `${seg.pid} · cola ${queueName(config, seg.queue)} · t=${seg.start}→${seg.end}`
+      }
+    >
+      {isIdle ? 'ocio' : seg.pid}
+    </div>
+  );
+}
+
 export default function GanttChart({
   simResult,
   cursor,
@@ -25,7 +78,6 @@ export default function GanttChart({
   const scrollRef = useRef(null);
   const prevCursorRef = useRef(-1);
   const processColors = getProcessColors(processes, config);
-
   const M = simResult ? simResult.makespan : 0;
   const isPercent = config.policy === 'percent';
 
@@ -178,10 +230,25 @@ export default function GanttChart({
                 const leftPct = (s.start / M) * 100;
                 const widthPct = ((s.end - s.start) / M) * 100;
 
+                if (isLive) {
+                  return (
+                    <LiveBlock
+                      key={`${s.start}-${s.pid || 'idle'}-live`}
+                      seg={s}
+                      widthPct={widthPct}
+                      leftPct={leftPct}
+                      col={col}
+                      isIdle={isIdle}
+                      config={config}
+                      ganttMs={ganttMs}
+                    />
+                  );
+                }
+
                 return (
                   <div
                     key={`${s.start}-${s.pid || 'idle'}-${i}`}
-                    className={`g-block ${isIdle ? 'idle' : ''} ${isLive ? 'live' : ''}`}
+                    className={`g-block ${isIdle ? 'idle' : ''}`}
                     style={{
                       left: `${leftPct}%`,
                       width: `${widthPct}%`,
