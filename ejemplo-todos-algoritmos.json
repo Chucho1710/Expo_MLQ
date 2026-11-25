@@ -1,0 +1,119 @@
+{
+  "config": {
+    "policy": "priority",
+    "preemptive": true,
+    "percent": [25, 25, 25, 25],
+    "cycle": 20,
+    "queues": [
+      {
+        "name": "Sistema (RR)",
+        "description": "Round Robin q=2 — siempre expropiativo. Los procesos se turnan en rodajas de 2 unidades.",
+        "algorithm": "RR",
+        "quantum": 2,
+        "preemptive": true
+      },
+      {
+        "name": "Interactiva (SJF)",
+        "description": "SJF no expropiativo — elige la ráfaga más corta y NO interrumpe al proceso en CPU.",
+        "algorithm": "SJF",
+        "quantum": 4,
+        "preemptive": false
+      },
+      {
+        "name": "Tiempo real (SRTF)",
+        "description": "SRTF — siempre expropiativo dentro de la cola: si llega un proceso más corto, desaloja al actual.",
+        "algorithm": "SRTF",
+        "quantum": 4,
+        "preemptive": true
+      },
+      {
+        "name": "Batch (FCFS)",
+        "description": "FCFS — no expropiativo, atiende en orden de llegada sin interrumpir nunca al proceso en CPU.",
+        "algorithm": "FCFS",
+        "quantum": 4,
+        "preemptive": false
+      }
+    ]
+  },
+  "processes": [
+    {
+      "_comentario": "── COLA 0 · Sistema (RR q=2) ──────────────────────────────────────",
+      "id": "S1",
+      "arrival": 0,
+      "burst": 5,
+      "queue": 0
+    },
+    {
+      "id": "S2",
+      "arrival": 1,
+      "burst": 4,
+      "queue": 0
+    },
+    {
+      "id": "S3",
+      "arrival": 3,
+      "burst": 3,
+      "queue": 0
+    },
+
+    {
+      "_comentario": "── COLA 1 · Interactiva (SJF no-expropiativo) ──────────────────────",
+      "id": "I1",
+      "arrival": 2,
+      "burst": 6,
+      "queue": 1
+    },
+    {
+      "id": "I2",
+      "arrival": 2,
+      "burst": 3,
+      "queue": 1
+    },
+    {
+      "id": "I3",
+      "arrival": 5,
+      "burst": 2,
+      "queue": 1
+    },
+
+    {
+      "_comentario": "── COLA 2 · Tiempo real (SRTF expropiativo) ────────────────────────",
+      "id": "R1",
+      "arrival": 4,
+      "burst": 7,
+      "queue": 2
+    },
+    {
+      "id": "R2",
+      "arrival": 6,
+      "burst": 2,
+      "queue": 2
+    },
+    {
+      "id": "R3",
+      "arrival": 8,
+      "burst": 4,
+      "queue": 2
+    },
+
+    {
+      "_comentario": "── COLA 3 · Batch (FCFS no-expropiativo) ───────────────────────────",
+      "id": "B1",
+      "arrival": 0,
+      "burst": 8,
+      "queue": 3
+    },
+    {
+      "id": "B2",
+      "arrival": 3,
+      "burst": 5,
+      "queue": 3
+    },
+    {
+      "id": "B3",
+      "arrival": 7,
+      "burst": 3,
+      "queue": 3
+    }
+  ]
+}

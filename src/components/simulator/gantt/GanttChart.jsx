@@ -23,6 +23,7 @@ export default function GanttChart({
   ganttMs
 }) {
   const scrollRef = useRef(null);
+  const prevCursorRef = useRef(-1);
   const processColors = getProcessColors(processes, config);
 
   const M = simResult ? simResult.makespan : 0;
@@ -30,6 +31,10 @@ export default function GanttChart({
 
   useEffect(() => {
     if (scrollRef.current && M > 0 && cursor >= 0) {
+      // Only scroll when cursor actually advances (not on re-renders due to state updates)
+      if (cursor === prevCursorRef.current) return;
+      prevCursorRef.current = cursor;
+
       const el = scrollRef.current;
       if (el.scrollWidth > el.clientWidth) {
         const x = ((cursor + 1) / M) * el.scrollWidth - el.clientWidth + 80;

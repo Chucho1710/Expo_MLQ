@@ -1,10 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   ALGORITHMS,
   MAX_QUEUES,
   queueName,
-  queuePriorityLabel
+  queuePriorityLabel,
+  DEFAULT_CONFIG
 } from '../../../engine/mlqEngine.js';
+
+/** Validates and parses a JSON import for processes + optional config */
+function parseImport(raw) {
+  let obj;
+  try { obj = JSON.parse(raw); } catch { throw new Error('JSON inválido.'); }
+
+  // Accept { processes, config } or just an array of processes
+  let processes, config;
+  if (Array.isArray(obj)) {
+    processes = obj;
+    config = null;
+  } else if (obj && Array.isArray(obj.processes)) {
+    processes = obj.processes;
+    config = obj.config || null;
+  } else {
+    throw new Error('El JSON debe contener un array "processes" o ser directamente un array de procesos.');
+  }
+
+  if (!processes.length) throw new Error('El array de procesos está vacío.');
+
+  // Basic field validation
+  processes.forEach((p, i) => {
+    if (!p.id || typeof p.id !== 'string') throw new Error(`Proceso [${i}]: falta el campo "id".`);
+    if (!Number.isInteger(p.arrival) || p.arrival < 0) throw new Error(`${p.id}: "arrival" debe ser un entero ≥ 0.`);
+    if (!Number.isInteger(p.burst) || p.burst < 1) throw new Error(`${p.id}: "burst" debe ser un entero ≥ 1.`);
+    if (!Number.isInteger(p.queue) || p.queue < 0) throw new Error(`${p.id}: "queue" debe ser un entero ≥ 0.`);
+  });
+
+  return { processes, config };
+}
 
 export default function GlobalActionsBar({
   config,
@@ -17,15 +48,16 @@ export default function GlobalActionsBar({
   onPolicyChange,
   onMlqPreemptiveChange,
   onCycleChange,
-  onLoadScenario,
   onClearProcesses,
   onResetConfig,
   onAddProcess,
   onAddQueue,
+  onImport,
   toast
 }) {
   const [showGlobalAddProc, setShowGlobalAddProc] = useState(false);
   const [showAddQueue, setShowAddQueue] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Formulario global de procesos
   const [pId, setPId] = useState('');
@@ -108,35 +140,50 @@ export default function GlobalActionsBar({
     setShowAddQueue(false);
   };
 
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const { processes: procs, config: cfg } = parseImport(ev.target.result);
+        onImport(procs, cfg);
+        toast(`Importados ${procs.length} proceso(s)${cfg ? ' con configuración' : ''}.`);
+      } catch (err) {
+        toast(`Error al importar: ${err.message}`);
+      }
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div className="global-actions-bar">
-      {/* Botones de Escenarios y Presets */}
+      {/* Barra de acciones: importar / vaciar / restaurar */}
       <div className="scenario-presets-row">
         <div className="preset-label">
-          <span>Escenarios predefinidos:</span>
+          <span>Acciones rápidas:</span>
         </div>
         <div className="btn-row">
           <button
             className="btn btn-small btn-primary"
             type="button"
-            onClick={() => onLoadScenario('base')}
+            onClick={handleImportClick}
+            title="Importar procesos y configuración desde un archivo JSON"
           >
-            Escenario base
+            ↑ Importar JSON
           </button>
-          <button
-            className="btn btn-small btn-outline"
-            type="button"
-            onClick={() => onLoadScenario('interrupciones')}
-          >
-            Con interrupciones
-          </button>
-          <button
-            className="btn btn-small btn-outline"
-            type="button"
-            onClick={() => onLoadScenario('multicola')}
-          >
-            5 colas
-          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,application/json"
+            style={{ display: 'none' }}
+            onChange={handleFileChange}
+          />
           <button
             className="btn btn-small btn-outline"
             type="button"

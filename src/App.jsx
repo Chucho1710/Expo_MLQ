@@ -9,15 +9,124 @@ import Toast from './components/common/Toast.jsx';
 
 import {
   DEFAULT_CONFIG,
-  SCENARIOS,
-  simulate
+  simulate,
+  queueName
 } from './engine/mlqEngine.js';
+
+/* ─── Export helpers ──────────────────────────────────────────────── */
+
+function downloadText(content, filename, mime) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type: mime }));
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+
+function exportJSON(processes, config, simResult) {
+  const payload = {
+    processes,
+    config,
+    ...(simResult ? { results: simResult.metrics } : {})
+  };
+  downloadText(JSON.stringify(payload, null, 2), 'mlq-simulacion.json', 'application/json');
+}
+
+function exportCSV(simResult, config) {
+  if (!simResult) return;
+  const m = simResult.metrics;
+  const header = ['Proceso', 'Cola', 'Llegada', 'Ráfaga', '1ª CPU', 'Fin', 'Espera', 'Retorno', 'Respuesta'];
+  const rows = m.perProcess.map((p) => [
+    p.id,
+    queueName(config, p.queue),
+    p.arrival,
+    p.burst,
+    p.start,
+    p.finish,
+    p.waiting,
+    p.turnaround,
+    p.response,
+  ]);
+  const footer = [
+    'Promedios', '', '', '', '', '',
+    m.avgWaiting.toFixed(2),
+    m.avgTurnaround.toFixed(2),
+    m.avgResponse.toFixed(2),
+  ];
+  const csv = [header, ...rows, footer]
+    .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+  downloadText(csv, 'mlq-resultados.csv', 'text/csv;charset=utf-8');
+}
+
+/** Renders the Gantt as a minimal SVG and triggers download */
+function exportGanttSVG(simResult, processes, config) {
+  if (!simResult) return;
+  const { ticks, makespan } = simResult;
+  const M = makespan;
+
+  // Build segments
+  const segs = [];
+  ticks.forEach((tk) => {
+    const last = segs[segs.length - 1];
+    if (last && last.pid === tk.pid && !tk.dispatch && last.end === tk.t) {
+      last.end = tk.t + 1;
+    } else {
+      segs.push({ pid: tk.pid, queue: tk.queue, start: tk.t, end: tk.t + 1 });
+    }
+  });
+
+  const queueColors = config.queues.map((_, i) => {
+    const shades = ['#7a0c1e','#1e293b','#6b7280','#0f766e','#b45309','#4338ca','#7e22ce','#15803d','#0369a1','#9a3412'];
+    return shades[i % shades.length];
+  });
+
+  const W = Math.max(800, M * 24);
+  const H = 80;
+  const trackH = 32;
+  const trackY = 24;
+  const pxPerUnit = W / M;
+
+  let svgParts = [`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" font-family="monospace" font-size="11">`];
+  svgParts.push(`<rect width="${W}" height="${H}" fill="#f4f5f7"/>`);
+
+  // Axis labels
+  const step = Math.max(1, Math.ceil(M / 30));
+  for (let i = 0; i <= M; i += step) {
+    const x = (i / M) * W;
+    svgParts.push(`<line x1="${x}" y1="${trackY + trackH}" x2="${x}" y2="${trackY + trackH + 6}" stroke="#6b7280" stroke-width="1"/>`);
+    svgParts.push(`<text x="${x}" y="${trackY + trackH + 16}" text-anchor="middle" fill="#374151">${i}</text>`);
+  }
+
+  // Segments
+  segs.forEach((s) => {
+    const isIdle = s.pid === null;
+    const x = (s.start / M) * W;
+    const w = Math.max(1, ((s.end - s.start) / M) * W);
+    const fill = isIdle ? '#d1d5db' : (queueColors[s.queue] || '#6b7280');
+    const fg = isIdle ? '#374151' : '#ffffff';
+    svgParts.push(`<rect x="${x}" y="${trackY}" width="${w}" height="${trackH}" fill="${fill}" rx="2"/>`);
+    if (w > 16) {
+      svgParts.push(`<text x="${x + w / 2}" y="${trackY + trackH / 2 + 4}" text-anchor="middle" fill="${fg}">${isIdle ? '…' : s.pid}</text>`);
+    }
+  });
+
+  // Legend
+  config.queues.forEach((_, i) => {
+    const lx = i * 100 + 4;
+    svgParts.push(`<rect x="${lx}" y="4" width="12" height="12" fill="${queueColors[i]}" rx="2"/>`);
+    svgParts.push(`<text x="${lx + 15}" y="14" fill="#111827">${queueName(config, i)}</text>`);
+  });
+
+  svgParts.push('</svg>');
+  downloadText(svgParts.join('\n'), 'mlq-gantt.svg', 'image/svg+xml');
+}
+
+/* ─── App ─────────────────────────────────────────────────────────── */
 
 export default function App() {
   const [config, setConfig] = useState(() => DEFAULT_CONFIG());
-  const [processes, setProcesses] = useState(() =>
-    SCENARIOS.base.processes.map((p) => ({ ...p }))
-  );
+  const [processes, setProcesses] = useState([]);
   const [simResult, setSimResult] = useState(null);
   const [cursor, setCursor] = useState(-1);
   const [status, setStatus] = useState('idle'); // idle | running | paused | finished
@@ -115,8 +224,6 @@ export default function App() {
     if (status !== 'running') return;
     const baseDelayMs = Math.round(1700 - speed * 150);
 
-    // Si el proceso en CPU está completando su última unidad de ráfaga (remaining === 1),
-    // damos un tiempo extra para que el usuario aprecie la barra de progreso al 100%
     const currentSnap = simResult && cursor >= 0 ? simResult.snapshots[cursor] : null;
     const isFinishingBurst = currentSnap?.cpu?.remaining === 1;
     const delayMs = isFinishingBurst ? baseDelayMs + 650 : baseDelayMs;
@@ -173,44 +280,49 @@ export default function App() {
     setProcesses(newProcs);
   };
 
-  const handleLoadScenario = (key) => {
-    const sc = SCENARIOS[key];
-    if (!sc) return;
-    let nextConfig = config;
-
-    if (sc.config) {
-      nextConfig = JSON.parse(JSON.stringify(sc.config));
-    } else {
-      const maxQ = Math.max(...sc.processes.map((p) => p.queue), 2);
-      if (config.queues.length < maxQ + 1) {
-        const nextQueues = [...config.queues];
-        const nextPct = [...config.percent];
-        const def = DEFAULT_CONFIG();
-        while (nextQueues.length < maxQ + 1) {
-          const i = nextQueues.length;
-          const template = def.queues[i] || {
-            name: `Cola ${i + 1}`,
-            description: `Cola de prioridad nivel ${i + 1}.`,
-            algorithm: 'FCFS',
-            quantum: 4
-          };
-          nextQueues.push({ ...template });
-          nextPct.push(Math.max(1, Math.floor(100 / nextQueues.length)));
-        }
-        nextConfig = { ...config, queues: nextQueues, percent: nextPct };
-      }
-    }
-
+  // Importar JSON: { processes, config? }
+  const handleImport = (procs, cfg) => {
     resetSimulation();
-    setConfig(nextConfig);
-    setProcesses(sc.processes.map((p) => ({ ...p })));
-    showToast(`${sc.name} cargado.`);
+    if (cfg) {
+      // Clamp queue indices to the imported config's queue count
+      const qCount = cfg.queues.length;
+      const fixedProcs = procs.map((p) => ({
+        ...p,
+        queue: Math.min(Math.max(0, p.queue), qCount - 1)
+      }));
+      setConfig(cfg);
+      setProcesses(fixedProcs);
+    } else {
+      // Clamp to current config's queue count
+      const qCount = config.queues.length;
+      const fixedProcs = procs.map((p) => ({
+        ...p,
+        queue: Math.min(Math.max(0, p.queue), qCount - 1)
+      }));
+      setProcesses(fixedProcs);
+    }
   };
 
   const handleClearProcesses = () => {
     resetSimulation();
     setProcesses([]);
     showToast('Lista de procesos vaciada.');
+  };
+
+  // Export handlers
+  const handleExportJSON = () => {
+    exportJSON(processes, config, simResult);
+    showToast('Exportado como mlq-simulacion.json');
+  };
+  const handleExportCSV = () => {
+    if (!simResult) { showToast('Ejecuta la simulación primero.'); return; }
+    exportCSV(simResult, config);
+    showToast('Tabla exportada como mlq-resultados.csv');
+  };
+  const handleExportGanttSVG = () => {
+    if (!simResult) { showToast('Ejecuta la simulación primero.'); return; }
+    exportGanttSVG(simResult, processes, config);
+    showToast('Diagrama de Gantt exportado como mlq-gantt.svg');
   };
 
   const currentSnapshot =
@@ -241,7 +353,7 @@ export default function App() {
           onChangeConfig={handleConfigChange}
           onResetConfig={handleResetConfig}
           onProcessesChange={handleProcessesChange}
-          onLoadScenario={handleLoadScenario}
+          onImport={handleImport}
           onClearProcesses={handleClearProcesses}
           onSpeedChange={setSpeed}
           onStart={handleStart}
@@ -254,7 +366,13 @@ export default function App() {
           toast={showToast}
         />
 
-        <ResultsSection simResult={simResult} cursor={cursor} />
+        <ResultsSection
+          simResult={simResult}
+          cursor={cursor}
+          onExportCSV={handleExportCSV}
+          onExportJSON={handleExportJSON}
+          onExportGanttSVG={handleExportGanttSVG}
+        />
       </main>
 
       <Footer />

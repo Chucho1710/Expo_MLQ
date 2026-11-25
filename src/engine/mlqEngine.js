@@ -103,17 +103,19 @@ export const ALGORITHMS = {
     label: 'Round Robin (RR)',
     modality: 'Expropiativo (por quantum)',
     usesQuantum: true,
-    canTogglePreemption: true,
-    note: 'Cada proceso recibe un quantum. En modo expropiativo (estándar), al agotarlo cede la CPU; en modo no expropiativo, ejecuta hasta terminar su ráfaga.'
+    canTogglePreemption: false,
+    note: 'Cada proceso recibe un quantum de tiempo. Al agotarlo cede la CPU y vuelve al final de la cola circular. Round Robin es siempre expropiativo por definición.'
   }
 };
 
-/** Determina si una cola tiene habilitada la expropiación interna */
+/** Determina si una cola tiene habilitada la expropiación interna.
+ *  Round Robin es SIEMPRE expropiativo (no tiene modo no-expropiativo). */
 export function isQueuePreemptive(config, qIdx) {
   const q = config && config.queues && config.queues[qIdx];
   if (!q) return false;
+  // RR is always preemptive — ignoring any stored preemptive flag
+  if (q.algorithm === 'RR' || q.algorithm === 'SRTF') return true;
   if (q.preemptive !== undefined) return Boolean(q.preemptive);
-  if (q.algorithm === 'SRTF' || q.algorithm === 'RR') return true;
   return false;
 }
 
@@ -122,7 +124,7 @@ export function getQueueModalityLabel(config, qIdx) {
   if (!q) return 'No expropiativo';
   const pre = isQueuePreemptive(config, qIdx);
   if (q.algorithm === 'FCFS') return 'No expropiativo';
-  if (q.algorithm === 'RR') return pre ? `Expropiativo (q = ${q.quantum})` : 'No expropiativo (sin quantum)';
+  if (q.algorithm === 'RR') return `Expropiativo (q = ${q.quantum})`;
   if (q.algorithm === 'SJF' || q.algorithm === 'SRTF') return pre ? 'Expropiativo (SRTF)' : 'No expropiativo (SJF)';
   return pre ? 'Expropiativo' : 'No expropiativo';
 }

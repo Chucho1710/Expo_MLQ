@@ -20,7 +20,7 @@ export default function SimulatorSection({
   onChangeConfig,
   onResetConfig,
   onProcessesChange,
-  onLoadScenario,
+  onImport,
   onClearProcesses,
   onSpeedChange,
   onStart,
@@ -51,7 +51,7 @@ export default function SimulatorSection({
           onChangeConfig={onChangeConfig}
           onResetConfig={onResetConfig}
           onProcessesChange={onProcessesChange}
-          onLoadScenario={onLoadScenario}
+          onImport={onImport}
           onClearProcesses={onClearProcesses}
           toast={toast}
         />

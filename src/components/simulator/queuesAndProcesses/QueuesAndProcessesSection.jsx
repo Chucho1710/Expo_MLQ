@@ -48,7 +48,7 @@ export default function QueuesAndProcessesSection({
   onChangeConfig,
   onResetConfig,
   onProcessesChange,
-  onLoadScenario,
+  onImport,
   onClearProcesses,
   toast
 }) {
@@ -224,7 +224,7 @@ export default function QueuesAndProcessesSection({
         onPolicyChange={handlePolicyChange}
         onMlqPreemptiveChange={handleMlqPreemptiveChange}
         onCycleChange={handleCycleChange}
-        onLoadScenario={onLoadScenario}
+        onImport={onImport}
         onClearProcesses={onClearProcesses}
         onResetConfig={onResetConfig}
         onAddProcess={handleAddProcess}
